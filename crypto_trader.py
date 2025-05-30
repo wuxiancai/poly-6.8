@@ -412,14 +412,24 @@ class CryptoTrader:
             settings_container.grid_columnconfigure(i, weight=1)
 
         """设置窗口大小和位置"""
+        
         if platform.system() == 'Linux':
-            window_width = 550
-        window_width = 460
-        window_height = 800
+            window_width = 600
+        else:
+            window_width = 460
+        
+
+        # 不再手动设置 window_width 和 window_height
+        self.root.update()  # 让所有控件布局完成
+        # 让窗口自适应内容
+        self.root.geometry("")  # 让窗口自动适应内容
+        # 可选：让窗口居中
+        window_width = window_width
+        window_height = self.root.winfo_height()
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        x = (screen_width - window_width) // 2
-        y = (screen_height - window_height) // 2
+        x = 0
+        y = 0
         self.root.geometry(f'{window_width}x{window_height}+{x}+{y}')
         
         # 监控网站配置
