@@ -1173,8 +1173,8 @@ class CryptoTrader:
                 # 更新价格显示
                 self.yes_price_label.config(text=f"Up: {gui_up_price:.1f}¢")
                 self.no_price_label.config(text=f"Down: {gui_down_price:.1f}¢") # 使用转换后的 no_price
-                self.up_shares_label.config(text=f"Up Shares: {asks_shares_val:.2f}")
-                self.down_shares_label.config(text=f"Down Shares: {bids_shares_val:.2f}")
+                self.up_shares_label.config(text=f"Up Shares: {asks_shares_val:.1f}")
+                self.down_shares_label.config(text=f"Down Shares: {bids_shares_val:.1f}")
                 
                 # 执行所有交易检查函数
 
