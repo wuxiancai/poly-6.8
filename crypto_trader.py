@@ -1020,31 +1020,6 @@ class CryptoTrader:
                 self.logger.error(f"加载目标页面失败: {str(e)}")
                 return
 
-            if self.cash_value is None:
-                self.logger.info("未登录,开始登录")
-
-                # 点击登录按钮
-                try:
-                    login_button = self.driver.find_element(By.XPATH, XPathConfig.LOGIN_BUTTON[0])
-                    login_button.click()
-                except NoSuchElementException:
-                    login_button = self._find_element_with_retry(
-                        XPathConfig.LOGIN_BUTTON,
-                        timeout=3,
-                        silent=True
-                    )
-                    login_button.click()
-                time.sleep(1)
-                
-                # 使用 XPath 定位并点击 google 按钮
-                google_button = self._find_element_with_retry(XPathConfig.LOGIN_WITH_GOOGLE_BUTTON, timeout=3, silent=True)
-                google_button.click()
-                time.sleep(25)
-
-                self.start_url_monitoring()
-                self.start_login_monitoring()
-                self.refresh_page()
-                self.schedule_auto_find_coin()
         except Exception as e:
             self.logger.error(f"自动修复失败: {e}")
     
