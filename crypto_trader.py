@@ -35,6 +35,8 @@ from xpath_config import XPathConfig
 from threading import Thread
 import random
 import requests
+import websocket
+
 
 class Logger:
     def __init__(self, name):
@@ -412,18 +414,16 @@ class CryptoTrader:
             settings_container.grid_columnconfigure(i, weight=1)
 
         """设置窗口大小和位置"""
-        
         if platform.system() == 'Linux':
-            window_width = 600
+            window_width = 550
         else:
             window_width = 460
-        
 
         # 不再手动设置 window_width 和 window_height
         self.root.update()  # 让所有控件布局完成
         # 让窗口自适应内容
         self.root.geometry("")  # 让窗口自动适应内容
-        # 可选：让窗口居中
+        
         window_width = window_width
         window_height = self.root.winfo_height()
         screen_width = self.root.winfo_screenwidth()
@@ -828,7 +828,7 @@ class CryptoTrader:
         self.root.after(14000, self.get_binance_zero_time_price)
         
         # 启动币安实时价格监控
-        self.root.after(16000, self.get_now_price)
+        self.root.after(16000, self.get_binance_price_websocket)
 
         # 启动币安价格对比
         self.root.after(20000, self.comparison_binance_price)
@@ -849,14 +849,12 @@ class CryptoTrader:
             if not self.driver:
                 chrome_options = Options()
                 chrome_options.debugger_address = "127.0.0.1:9222"
-                chrome_options.add_argument('--no-sandbox')
                 chrome_options.add_argument('--disable-dev-shm-usage')
                 
                 system = platform.system()
-                if system == 'Darwin':  # macOS
-                    pass
-                elif system == 'Linux':  # Linux (Ubuntu)
+                if system == 'Linux':
                     chrome_options.add_argument('--disable-gpu')
+                    chrome_options.add_argument('--no-sandbox')
                     chrome_options.add_argument('--disable-software-rasterizer')
 
                 self.driver = webdriver.Chrome(options=chrome_options)
@@ -884,6 +882,7 @@ class CryptoTrader:
                         self.trading_pair_label.config(text="无识别事件名称")
                 except Exception:
                     self.trading_pair_label.config(text="解析失败")
+                    
                 #  开启监控
                 self.running = True
                 
@@ -897,15 +896,21 @@ class CryptoTrader:
                 self.logger.error(error_msg)
                 self._show_error_and_reset(error_msg)  
         except Exception as e:
-            error_msg = f"启动监控失败: {str(e)}"
+            error_msg = f"启动浏览器失败: {str(e)}"
+            self.logger.error(f"启动监控失败: {str(e)}")
             self.logger.error(error_msg)
             self._show_error_and_reset(error_msg)
 
     def _show_error_and_reset(self, error_msg):
         """显示错误并重置按钮状态"""
         # 用after方法确保在线程中执行GUI操作
-        self.root.after(0, lambda: messagebox.showerror("错误", error_msg))
-        self.root.after(0, lambda: self.start_button.config(state='normal'))
+        # 在尝试显示消息框之前，检查Tkinter主窗口是否仍然存在
+        if self.root and self.root.winfo_exists():
+            self.root.after(0, lambda: messagebox.showerror("错误", error_msg))
+            self.root.after(0, lambda: self.start_button.config(state='normal'))
+        else:
+            # 如果主窗口不存在，则直接记录错误到日志
+            self.logger.error(f"GUI主窗口已销毁，无法显示错误消息: {error_msg}")
         self.running = False
 
     def monitor_prices(self):
@@ -967,7 +972,7 @@ class CryptoTrader:
             if platform.system() == 'Darwin':  # macOS
                 script_path = os.path.abspath('start_chrome_macos.sh')
             else:  # Linux (Ubuntu)
-                script_path = os.path.abspath('start_chrome_ubuntu.sh')
+                script_path = os.path.abspath('start_chrome.sh')
            # 直接在当前进程中执行脚本，而不是打开新终端
             try:
                 # 使用subprocess直接执行脚本，不打开新终端
@@ -976,21 +981,19 @@ class CryptoTrader:
             except Exception as chrome_e:
                 self.logger.error(f"启动Chrome浏览器失败: {str(chrome_e)}")
 
-             # 等待Chrome启动并初始化driver
+            # 等待Chrome启动并初始化driver
             max_retries = 6
             for attempt in range(max_retries):
                 try:
                     # 重新初始化driver
                     chrome_options = Options()
-                    chrome_options.debugger_address = "127.0.0.1:9222"
-                    chrome_options.add_argument('--no-sandbox')
+                    chrome_options.debugger_address = "127.0.0.1:9222" 
                     chrome_options.add_argument('--disable-dev-shm-usage')
 
                     system = platform.system()
-                    if system == 'Darwin':  # macOS
-                        pass
-                    elif system == 'Linux':  # Linux (Ubuntu)
+                    if system == 'Linux':  # Linux (Ubuntu)
                         chrome_options.add_argument('--disable-gpu')
+                        chrome_options.add_argument('--no-sandbox')
                         chrome_options.add_argument('--disable-software-rasterizer')
 
                     self.driver = webdriver.Chrome(options=chrome_options)
@@ -1019,11 +1022,11 @@ class CryptoTrader:
             except Exception as e:
                 self.logger.error(f"加载目标页面失败: {str(e)}")
                 return
-
+                
         except Exception as e:
             self.logger.error(f"自动修复失败: {e}")
     
-    def get_nearby_cents(self, retry_times=2):
+    def get_nearby_cents(self):
         """获取spread附近的价格数字"""
         # 根据规律直接获取对应位置的值
         up_price_val = None
@@ -1037,8 +1040,7 @@ class CryptoTrader:
             keyword_element = self.driver.find_element(By.XPATH, XPathConfig.SPREAD[0])
         except NoSuchElementException:
             #self.logger.warning(f"SPREAD元素最终未找到: {keyword_element}")
-            return None, None, None, None
-        
+            return None, None, None, None   
         # 获取container
         container = None
         try:
@@ -1050,7 +1052,6 @@ class CryptoTrader:
         if not container:
             #self.logger.warning("Container for SPREAD not found (was None after trying to get ancestor).")
             return None, None, None, None         
-
         # 取兄弟节点
         above_element_texts = []
         below_element_texts = []
@@ -1108,15 +1109,14 @@ class CryptoTrader:
                             up_price_str = price_match_obj.group(1)
                             asks_shares_str = cleaned_shares
                             #self.logger.info(f"Found UP price (ask): {up_price_str} from '{price_candidate}', shares: {asks_shares_str} from '{shares_candidate}'")
-                            break # Found the first, lowest ask
-        
+                            break
         down_price_str = None
         bids_shares_str = None
         # For "down" (bids), the pattern is Price Cents, then Shares
         if len(below_element_texts) >= 2: # Need at least 2 elements
             for i in range(len(below_element_texts) - 1):
-                current_text = below_element_texts[i] # Price candidate
-                next_text = below_element_texts[i+1]    # Shares candidate
+                current_text = below_element_texts[i] 
+                next_text = below_element_texts[i+1] 
                 
                 if '¢' in current_text:
                     price_match_obj = re.search(r'(\d+\.?\d*)¢', current_text)
@@ -1127,8 +1127,7 @@ class CryptoTrader:
                             # Use the cleaned shares value directly
                             bids_shares_str = potential_shares_cleaned 
                             #self.logger.info(f"Found DOWN price (bid): {down_price_str} from '{current_text}', shares: {bids_shares_str} from '{next_text}'")
-                            break # Found the first (highest) bid
-        
+                            break 
         try:  
             if up_price_str is not None: # Check for None before float conversion
                 up_price_val = round(float(up_price_str), 2)
@@ -1159,7 +1158,7 @@ class CryptoTrader:
             self.restart_browser()
  
         try:
-            # 获取一次价格和股数
+            # 获取一次价格和SHARES
             up_price_val, down_price_val, asks_shares_val, bids_shares_val = self.get_nearby_cents()
             
             if up_price_val is not None and down_price_val is not None and asks_shares_val is not None and bids_shares_val is not None:
@@ -3700,85 +3699,59 @@ class CryptoTrader:
             self.binance_zero_price_timer_thread.start()
             self.logger.info(f"✅ \033[34m{round(seconds_until_next_run / 3600,2)}\033[0m 小时后重新获取{coin_for_next_log} 零点价格")
     
-    def get_now_price(self):
-        """获取当前价格。此方法在threading.Timer的线程中执行。"""
-        api_data = None
-        coin_for_api = ""
-        current_price_for_calc = None # 用于计算变化率的价格
+    def get_binance_price_websocket(self):
+        selected_coin = self.coin_combobox.get()
+        coin_for_api = selected_coin.lower() + 'usdt'
+        ws_url = f"wss://stream.binance.com:9443/ws/{coin_for_api}@ticker"
 
-        try:
-            # 这部分代码在辅助线程中运行
-            # 1. 获取币种信息和上一次的价格（非GUI操作）
-            selected_coin = self.coin_combobox.get() # 获取当前选择的币种
-            coin_for_api = selected_coin + 'USDT'
-            
-            # 安全地获取 self.last_coin_price
-            if hasattr(self, 'last_coin_price') and self.last_coin_price is not None:
-                current_price_for_calc = self.last_coin_price
-            else:
-                self.logger.warning(f"线程 {threading.get_ident()}: self.last_coin_price 未定义或为None,无法计算价格变动率。")
+        def on_message(ws, message):
+            try:
+                data = json.loads(message)
+                price = round(float(data['c']), 3)  # 最新成交价格 close price
 
-            # 2. 执行网络请求
-            response = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={coin_for_api}', timeout=5) # 添加超时
-            response.raise_for_status()
+                current_price_for_calc = getattr(self, 'last_coin_price', None)
+                binance_rate_text = "--"
+                rate_color = "black"
 
-            data = response.json()
-            price = round(float(data['price']), 3)
-            
-            binance_rate_text = "--"
-            rate_color = "black" # 默认颜色
+                if current_price_for_calc:
+                    binance_rate = ((price - current_price_for_calc) / current_price_for_calc) * 100
+                    binance_rate_text = f"{binance_rate:.2f}%"
+                    rate_color = "#1AAD19" if binance_rate >= 0 else "red"
 
-            if current_price_for_calc is not None and current_price_for_calc > 0:
-                binance_rate = ((price - current_price_for_calc) / current_price_for_calc) * 100
-                binance_rate_text = f"{binance_rate:.2f}%"
-                rate_color = "#1AAD19" if binance_rate >= 0 else "red"
-            
-            api_data = {
-                "price": price, 
-                "binance_rate_text": binance_rate_text, 
-                "rate_color": rate_color,
-                "coin_for_display": coin_for_api # 用于日志或确认
-            }
-            #self.logger.debug(f"线程 {threading.get_ident()}: 成功获取到币安 {api_data['coin_for_display']} 当前价格: {api_data['price']}")
+                self.last_coin_price = price  # 更新为最新价格
 
-        except requests.exceptions.Timeout:
-            self.logger.info(f"❌ 获取币安 \033[34m{coin_for_api}\033[0m 当前价格超时。")
-        except requests.exceptions.HTTPError as http_err:
-            self.logger.info(f"❌ 获取币安 \033[34m{coin_for_api}\033[0m 当前价格时发生HTTP错误: {http_err}")
-        except requests.exceptions.RequestException as req_err:
-            self.logger.info(f"❌ 获取币安 \033[34m{coin_for_api}\033[0m 当前价格时发生网络请求错误: {req_err}")
-        except Exception as e:
-            self.logger.info(f"❌ 获取币安 \033[34m{coin_for_api}\033[0m 当前价格时发生未知错误: {e}")
-            
-        else:
-            # 3. 如果成功获取数据，则安排GUI更新到主线程
-            if api_data:
                 def update_gui():
-                    # 这部分代码将在主GUI线程中运行
                     try:
-                        self.binance_now_price_label.config(text=f"${api_data['price']}")
+                        self.binance_now_price_label.config(text=f"${price}")
                         self.binance_rate_label.config(
-                            text=api_data['binance_rate_text'], 
-                            foreground=api_data['rate_color'], 
+                            text=binance_rate_text,
+                            foreground=rate_color,
                             font=("Arial", 18, "bold")
                         )
-                        # self.logger.debug(f"主线程: GUI已更新 - {api_data['coin_for_display']} 当前价格: ${api_data['price']}")
-                    except Exception as e_gui:
-                        self.logger.debug(f"❌ 更新当前价格GUI时出错")
+                    except Exception as e:
+                        self.logger.debug("❌ 更新GUI时发生错误:", e)
 
                 self.root.after(0, update_gui)
-        
-        # 4. 在 finally 块中重新调度下一次执行
-        finally:
-            # 取消已有的定时器（如果存在）
-            # 使用不同的属性名存储Timer对象, 例如 self.get_now_price_timer_thread
-            if hasattr(self, 'get_now_price_timer_thread') and self.get_now_price_timer_thread and self.get_now_price_timer_thread.is_alive():
-                self.get_now_price_timer_thread.cancel()
+            except Exception as e:
+                self.logger.warning(f"WebSocket 消息处理异常: {e}")
 
-            if self.running and not self.stop_event.is_set():
-                self.get_now_price_timer_thread = threading.Timer(10, self.get_now_price) # 每10秒获取一次
-                self.get_now_price_timer_thread.daemon = True
-                self.get_now_price_timer_thread.start()
+        def on_error(ws, error):
+            self.logger.warning(f"WebSocket 错误: {error}")
+
+        def on_close(ws, close_status_code, close_msg):
+            self.logger.info("WebSocket 连接已关闭")
+
+        def run_ws():
+            while self.running and not self.stop_event.is_set():
+                try:
+                    ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_error=on_error, on_close=on_close)
+                    ws.run_forever()
+                except Exception as e:
+                    self.logger.warning(f"WebSocket 主循环异常: {e}")
+                time.sleep(5)  # 出错后延迟重连
+
+        self.ws_thread = threading.Thread(target=run_ws, daemon=True)
+        self.ws_thread.start()
 
     def _perform_price_comparison(self):
         """执行价格比较"""
