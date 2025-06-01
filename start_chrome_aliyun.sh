@@ -113,13 +113,13 @@ fi
 
 # 自动判断 DISPLAY
 echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
-
+cp /run/user/1000/gdm/Xauthority $HOME/Xauthority
 if [ -z "$DISPLAY" ] || [[ "$DISPLAY" == ":0" ]]; then
     SOCKET=$(ls /tmp/.X11-unix/X* 2>/dev/null | head -n1)
     if [ -n "$SOCKET" ]; then
-        export DISPLAY=":1"
-        export XAUTHORITY=/$HOME/.Xauthority
-        echo -e "${YELLOW}使用vnc桌面的 DISPLAY=:1${NC}"
+        export DISPLAY=":0"
+        export XAUTHORITY=/$HOME/Xauthority
+        echo -e "${YELLOW}使用vnc桌面的 DISPLAY=:0${NC}"
     else
         echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
         exit 1
