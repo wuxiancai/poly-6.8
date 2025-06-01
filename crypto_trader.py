@@ -1373,7 +1373,7 @@ class CryptoTrader:
                         target_url = self.target_url
 
                         if current_page_url != target_url:
-                            self.logger.warning("检测到URL变化,正在恢复...")
+                            self.logger.warning("检测到URL变化,正在恢复")
                             self.driver.get(target_url)
                             self.logger.info("\033[34m✅ 已恢复到正确的监控网址\033[0m")
 
