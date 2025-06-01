@@ -512,10 +512,7 @@ class CryptoTrader:
         binance_frame.pack(anchor="center")
 
         # 币安零点时价格显示
-        ttk.Label(binance_frame, text="", 
-                 font=('Arial', 16), foreground='black').pack(side=tk.LEFT, padx=2)
-        
-        ttk.Label(binance_frame, text="00:00 Price:", 
+        ttk.Label(binance_frame, text="M-Price:", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
         self.binance_zero_price_label = ttk.Label(binance_frame, text="--", 
                                         font=('Arial', 16), foreground='blue')
@@ -3750,7 +3747,7 @@ class CryptoTrader:
 
                 if current_price_for_calc:
                     binance_rate = ((price - current_price_for_calc) / current_price_for_calc) * 100
-                    binance_rate_text = f"{binance_rate:.2f}%"
+                    binance_rate_text = f"{binance_rate:.3f}%"
                     rate_color = "#1AAD19" if binance_rate >= 0 else "red"
 
                 self.last_coin_price = price  # 更新为最新价格
