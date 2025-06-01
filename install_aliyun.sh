@@ -129,9 +129,9 @@ cat > run_trader.sh << 'EOL'
 if [ -z "$DISPLAY" ] || [[ "$DISPLAY" == ":0" ]]; then
     SOCKET=$(ls /tmp/.X11-unix/X* 2>/dev/null | head -n1)
     if [ -n "$SOCKET" ]; then
-        export DISPLAY=":1"
-        export XAUTHORITY="/$HOME/.Xauthority"
-        echo "自动设置 DISPLAY=:1"
+        export DISPLAY=":0"
+        export XAUTHORITY="/$HOME/Xauthority"
+        echo "自动设置 DISPLAY=:0"
     else
         echo "未检测到 X11 socket,退出"
         exit 1

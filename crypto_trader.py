@@ -415,7 +415,7 @@ class CryptoTrader:
 
         """设置窗口大小和位置"""
         if platform.system() == 'Linux':
-            window_width = 550
+            window_width = 500
         else:
             window_width = 460
 
@@ -968,7 +968,7 @@ class CryptoTrader:
             if platform.system() == 'Darwin':  # macOS
                 script_path = os.path.abspath('start_chrome_macos.sh')
             else:  # Linux (Ubuntu)
-                script_path = os.path.abspath('start_chrome.sh')
+                script_path = os.path.abspath('start_chrome_aliyun.sh')
            # 直接在当前进程中执行脚本，而不是打开新终端
             try:
                 # 使用subprocess直接执行脚本，不打开新终端
@@ -1667,8 +1667,8 @@ class CryptoTrader:
 
             if platform.system() == "Linux": # 分辨率 2560x1600
                 # Linux 系统下的特定坐标
-                target_x = screen_width - 600
-                target_y = 960
+                target_x = screen_width - 520
+                target_y = 724
                 
             else:
                 # 其他操作系统的默认坐标分辨率 1920x1080
