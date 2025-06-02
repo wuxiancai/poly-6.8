@@ -415,7 +415,7 @@ class CryptoTrader:
 
         """设置窗口大小和位置"""
         if platform.system() == 'Linux':
-            window_width = 500
+            window_width = 510
         else:
             window_width = 460
 
