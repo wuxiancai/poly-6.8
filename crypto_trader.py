@@ -2196,10 +2196,10 @@ class CryptoTrader:
                 # 获取Yes5价格
                 yes5_price = float(self.yes5_price_entry.get())
                 self.trading = True  # 开始交易
-                price_diff = round(bids_price_raw - yes5_price, 2) # 47-47=0;48-47=1;46-47=-1;
+                price_diff = round(bids_price_raw - yes5_price, 2) # 47-47=0;;46-47=-1;
 
                 # 检查Yes5价格匹配
-                if (44 <=yes5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
+                if (44 <=yes5_price <= 47) and (-2 <= price_diff <= 1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Up 5: {bids_price_raw}¢ 价格匹配,执行自动卖出")
                     
                     self.yes5_target_price = yes5_price
@@ -2285,7 +2285,7 @@ class CryptoTrader:
                 price_diff = round(100 - asks_price_raw - no5_price, 2)
             
                 # 检查No5价格匹配,反水卖出同方向
-                if (40 <=no5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
+                if (40 <=no5_price <= 47) and (-2 <= price_diff <= 1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Down 5: {100 - asks_price_raw}¢ 价格匹配,执行自动卖出")
 
                     while True:
