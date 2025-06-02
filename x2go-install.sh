@@ -6,6 +6,14 @@ USER_NAME="admin"
 USER_PASS="noneboy"
 RESOLUTION="1920x1080"
 
+echo "[0/10] 禁用 needrestart 交互提示..."
+# 安装并配置 needrestart 不弹出交互窗口
+sudo DEBIAN_FRONTEND=noninteractive apt install -y needrestart
+sudo tee /etc/needrestart/needrestart.conf > /dev/null <<EOF
+\$nrconf{restart} = 'a';
+\$nrconf{ui} = '0';
+EOF
+
 echo "[1/12] 设置用户密码..."
 echo "$USER_NAME:$USER_PASS" | sudo chpasswd
 
@@ -15,7 +23,7 @@ sudo apt update -y && sudo apt upgrade -y
 echo "[3/12] 安装 MATE 桌面与 LightDM..."
 sudo DEBIAN_FRONTEND=noninteractive apt install -y \
     mate-desktop-environment mate-desktop-environment-extras \
-    mate-notification-daemon mate-tweak lightdm dbus-x11 xfonts-base
+    mate-notification-daemon mate-tweak lightdm dbus-x11 xfonts-base mate-core
 
 echo "[4/12] 配置 LightDM 自动登录..."
 echo "/usr/sbin/lightdm" | sudo tee /etc/X11/default-display-manager
@@ -29,12 +37,19 @@ EOF
 echo "[5/12] 安装 X2Go Server..."
 sudo add-apt-repository ppa:x2go/stable -y
 sudo apt update -y
-sudo apt install -y x2goserver x2goserver-xsession x2gomatebindings
+sudo apt install -y x2goserver x2goserver-xsession x2gomatebindings nxagent
+
+sudo tee /etc/x2go/xsession > /dev/null <<EOF
+#!/bin/bash
+exec mate-session
+EOF
+
+sudo chmod +x /etc/x2go/xsession
 
 echo "[6/12] 安装网页VNC组件..."
 sudo apt install -y x11vnc novnc websockify
 sudo mkdir -p /etc/x11vnc
-x11vnc -storepasswd "$USER_PASS" /etc/x11vnc/vncpasswd
+sudo x11vnc -storepasswd "$USER_PASS" /etc/x11vnc/vncpasswd
 
 sudo tee /etc/systemd/system/x11vnc.service > /dev/null <<EOF
 [Unit]
@@ -145,12 +160,27 @@ EOF
 
 sudo sysctl -p
 
+echo "[7/10] 设置分辨率 $RESOLUTION..."
+xrandr --newmode "$RESOLUTION" 173.00 1920 2048 2248 2576 1080 1083 1088 1120 -hsync +vsync
+xrandr --addmode Virtual1 "$RESOLUTION"
+xrandr --output Virtual1 --mode "$RESOLUTION"
+
+echo "禁用不必要的服务..."
+# 禁用云初始化（如果存在）
+sudo systemctl stop cloud-init.service cloud-init-local.service cloud-config.service cloud-final.service || true
+sudo systemctl disable cloud-init.service cloud-init-local.service cloud-config.service cloud-final.service || true
+
 echo "[11/12] 设置默认启动图形界面..."
 sudo systemctl set-default graphical.target
 sudo systemctl restart lightdm
 
 echo "[12/12] 安装监控工具..."
 sudo apt install -y nload ifstat tcptrack
+
+# 清理缓存
+rm -rf /home/admin/.Xauthority
+rm -rf /home/admin/.xsession*
+rm -rf /home/admin/.cache/sessions/*
 
 echo "✅ 部署完成！"
 
