@@ -1606,11 +1606,11 @@ class CryptoTrader:
                     refresh_time = self.refresh_interval / 60000
                     self.driver.refresh()
                 else:
-                    self.logger.info("刷新失败")
+                    self.logger.info("刷新失败(else)")
                     self.logger.info(f"trading={self.trading}")
                     
             except Exception as e:
-                self.logger.error(f"页面刷新失败")
+                self.logger.warning(f"页面刷新失败(except)")
                 # 无论是否执行刷新都安排下一次（确保循环持续）
                 if hasattr(self, 'refresh_page_timer') and self.refresh_page_timer:
                     try:
@@ -1619,7 +1619,7 @@ class CryptoTrader:
                         self.logger.error(f"取消旧定时器失败")
             finally:
                 self.refresh_page_timer = self.root.after(self.refresh_interval, self.refresh_page)
-                self.logger.info(f"\033[34m{round(refresh_time, 2)} 分钟后再次刷新\033[0m")
+                #self.logger.info(f"\033[34m{round(refresh_time, 2)} 分钟后再次刷新\033[0m")
 
     def stop_refresh_page(self):
         """停止页面刷新"""
