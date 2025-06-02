@@ -2259,10 +2259,7 @@ class CryptoTrader:
                         self.sell_count = 0
                         self.trade_count = 0
                         break
-                    else:
-                        self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
-                        time.sleep(1)
-
+                    
                 elif yes5_price >= 60 and 0 <= price_diff <= 1.1 and (bids_shares > self.bids_shares):
                     self.logger.info(f"Up 5: {asks_price_raw}¢ 价格匹配,执行自动卖出")
                     
@@ -2294,10 +2291,7 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                    else:
-                        self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
-                        time.sleep(1)
-                
+                    
         except Exception as e:
             self.logger.error(f"Sell_yes执行失败: {str(e)}")
             
@@ -2359,9 +2353,7 @@ class CryptoTrader:
                         self.sell_count = 0
                         self.trade_count = 0
                         break
-                    else:
-                        self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
-                        time.sleep(1)
+                    
                 elif no5_price >= 60 and (0 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Down 5: {100 - asks_price_raw}¢ 价格匹配,执行自动卖出")
 
@@ -2389,9 +2381,6 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                    else:
-                        self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
-                        time.sleep(1)
                 
         except Exception as e:
             self.logger.info(f"Sell_no执行失败: {str(e)}")
@@ -2488,95 +2477,103 @@ class CryptoTrader:
 
     def only_sell_yes3(self):
         """只卖出YES 3 SHARES"""
-        self.logger.info("执行only_sell_yes3")
-        # 获取 YES3 的金额
-        yes3_shares = self.buy_yes3_amount / (self.default_target_price / 100)
-        
-        # 再卖 UP ,但是只卖 YES3 的金额对应的 SHARES
-        self.position_sell_yes_button.invoke()
-        time.sleep(0.5)
-
-        # 找到SHARES输入框(与 AMOUNT_INPUT 相同)
         try:
-            shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
-        except NoSuchElementException:
-            shares_input = self._find_element_with_retry(
-                XPathConfig.AMOUNT_INPUT,
-                timeout=3,
-                silent=True
-            )                   
+            self.logger.info("执行only_sell_yes3")
+            # 获取 YES3 的金额
+            yes3_shares = self.buy_yes3_amount / (self.default_target_price / 100)
+            
+            # 再卖 UP ,但是只卖 YES3 的金额对应的 SHARES
+            self.position_sell_yes_button.invoke()
+            time.sleep(0.5)
 
-        # 清除 SHARES 输入为 0,然后再插入需要卖的 SHARES
-        shares_input.clear()
-        time.sleep(0.5)
-        shares_input.send_keys(str(yes3_shares))
-        time.sleep(0.5)
-        self.sell_confirm_button.invoke()
-        time.sleep(0.5)
+            # 找到SHARES输入框(与 AMOUNT_INPUT 相同)
+            try:
+                shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
+            except NoSuchElementException:
+                shares_input = self._find_element_with_retry(
+                    XPathConfig.AMOUNT_INPUT,
+                    timeout=3,
+                    silent=True
+                )                   
 
-        # 验证是否卖出成功
-        if self.Verify_sold_yes():
-            self.logger.info(f"卖 Up 3 SHARES 成功")
+            # 清除 SHARES 输入为 0,然后再插入需要卖的 SHARES
+            shares_input.clear()
+            time.sleep(0.5)
+            shares_input.send_keys(str(yes3_shares))
+            time.sleep(0.5)
+            self.sell_confirm_button.invoke()
+            time.sleep(0.5)
 
-        # 增加卖出计数
-        self.sell_count += 1
-        # 发送交易邮件 - 卖出YES
-        self.send_trade_email(
-            trade_type="Sell Up",
-            price=self.sell_up_price,
-            amount=self.position_yes_cash(),  # 卖出时金额为总持仓
-            trade_count=self.sell_count,
-            cash_value=self.cash_value,
-            portfolio_value=self.portfolio_value
-        )
-        self.logger.info(f"卖出 Up 3 SHARES: {yes3_shares} 成功")     
-    
+            # 验证是否卖出成功
+            if self.Verify_sold_yes():
+                self.logger.info(f"卖 Up 3 SHARES 成功")
+
+            # 增加卖出计数
+            self.sell_count += 1
+            # 发送交易邮件 - 卖出YES
+            self.send_trade_email(
+                trade_type="Sell Up",
+                price=self.sell_up_price,
+                amount=self.position_yes_cash(),  # 卖出时金额为总持仓
+                trade_count=self.sell_count,
+                cash_value=self.cash_value,
+                portfolio_value=self.portfolio_value
+            )
+            self.logger.info(f"卖出 Up 3 SHARES: {yes3_shares} 成功")     
+        except Exception as e:
+            self.logger.info(f"only_sell_yes3执行失败,重试")
+            self.only_sell_yes3()
+            
     def only_sell_no3(self):
         """只卖出Down 3 SHARES"""
-        self.logger.info("执行only_sell_no3")
-        # 获取 NO3 的SHARES
-        no3_shares = self.buy_no3_amount / (self.default_target_price / 100)
-        
-        # 再卖 down ,但是只卖 no3 的金额对应的 SHARES
-        self.position_sell_no_button.invoke()
-        time.sleep(0.5)
-        
-        # 找到输入框
         try:
-            shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
-        except NoSuchElementException:
-            shares_input = self._find_element_with_retry(
-                XPathConfig.AMOUNT_INPUT,
-                timeout=3,
-                silent=True
+            self.logger.info("执行only_sell_no3")
+            # 获取 NO3 的SHARES
+            no3_shares = self.buy_no3_amount / (self.default_target_price / 100)
+            
+            # 再卖 down ,但是只卖 no3 的金额对应的 SHARES
+            self.position_sell_no_button.invoke()
+            time.sleep(0.5)
+            
+            # 找到输入框
+            try:
+                shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
+            except NoSuchElementException:
+                shares_input = self._find_element_with_retry(
+                    XPathConfig.AMOUNT_INPUT,
+                    timeout=3,
+                    silent=True
+                )
+            
+            # 设置 SHARES_input 为 0,然后再插入需要卖的 SHARES                       
+            shares_input.clear()
+
+            time.sleep(0.5)
+            shares_input.send_keys(str(no3_shares))
+            time.sleep(0.5)
+            self.sell_confirm_button.invoke()
+            time.sleep(0.5)
+
+            if self.Verify_sold_no():
+                self.logger.info(f"卖 Down 3 SHARES 成功")
+
+            # 增加卖出计数
+            self.sell_count += 1
+            
+            # 发送交易邮件 - 卖出NO
+            self.send_trade_email(
+                trade_type="Sell Down",
+                price=self.sell_down_price,
+                amount=self.position_no_cash(),  # 卖出时金额为总持仓
+                trade_count=self.sell_count,
+                cash_value=self.cash_value,
+                portfolio_value=self.portfolio_value
             )
-        
-        # 设置 SHARES_input 为 0,然后再插入需要卖的 SHARES                       
-        shares_input.clear()
-
-        time.sleep(0.5)
-        shares_input.send_keys(str(no3_shares))
-        time.sleep(0.5)
-        self.sell_confirm_button.invoke()
-        time.sleep(0.5)
-
-        if self.Verify_sold_no():
-            self.logger.info(f"卖 Down 3 SHARES 成功")
-
-        # 增加卖出计数
-        self.sell_count += 1
-        
-        # 发送交易邮件 - 卖出NO
-        self.send_trade_email(
-            trade_type="Sell Down",
-            price=self.sell_down_price,
-            amount=self.position_no_cash(),  # 卖出时金额为总持仓
-            trade_count=self.sell_count,
-            cash_value=self.cash_value,
-            portfolio_value=self.portfolio_value
-        )
-        self.logger.info(f"卖出 Down 3 SHARES: {no3_shares} 成功")
-        
+            self.logger.info(f"卖出 Down 3 SHARES: {no3_shares} 成功")
+        except Exception as e:
+            self.logger.info(f"only_sell_no3执行失败,重试")
+            self.only_sell_no3()
+            
     def Verify_buy_yes(self):
         """
         验证交易是否成功完成Returns:bool: 交易是否成功
