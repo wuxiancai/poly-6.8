@@ -987,7 +987,9 @@ class CryptoTrader:
                     if system == 'Linux':  # Linux (Ubuntu)
                         chrome_options.add_argument('--disable-gpu')
                         chrome_options.add_argument('--no-sandbox')
-                        chrome_options.add_argument('--disable-software-rasterizer')
+                        chrome_options.add_argument('--disable-extensions')
+                        chrome_options.add_argument('--disable-translate')
+                        chrome_options.add_argument('--no-first-run')
 
                     self.driver = webdriver.Chrome(options=chrome_options)
                     
@@ -1253,8 +1255,8 @@ class CryptoTrader:
             yes1_amount = self.yes1_amount_entry.get().strip()
 
             if yes1_amount and yes1_amount != '0':
-                # 延迟2秒设置价格
-                self.root.after(2000, lambda: self.set_yes1_no1_default_target_price())
+                # 延迟5秒设置价格
+                self.root.after(5000, lambda: self.set_yes1_no1_default_target_price())
                 
             else:
                 if current_retry < 15:  # 最多重试15次
@@ -3376,15 +3378,15 @@ class CryptoTrader:
         except Exception as e:
             self.logger.error(f"监控 XPath 元素时发生错误: {str(e)}")
         finally:
-            # 每隔 30 分钟检查一次,先关闭之前的定时器
+            # 每隔 1 小时检查一次,先关闭之前的定时器
             self.root.after_cancel(self.monitor_xpath_timer)
-            self.root.after(1800000, self.monitor_xpath_elements)
+            self.root.after(3600000, self.monitor_xpath_elements)
 
     def schedule_auto_find_coin(self):
-        """安排每天1点2分执行自动找币"""
+        """安排每天3点30分执行自动找币"""
         now = datetime.now()
         # 计算下一个3点2分的时间
-        next_run = now.replace(hour=2, minute=27, second=0, microsecond=0)
+        next_run = now.replace(hour=3, minute=30, second=0, microsecond=0)
         if now >= next_run:
             next_run += timedelta(days=1)
         
