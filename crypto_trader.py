@@ -2259,6 +2259,9 @@ class CryptoTrader:
                         self.sell_count = 0
                         self.trade_count = 0
                         break
+                    else:
+                        self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
+                        time.sleep(1)
 
                 elif yes5_price >= 60 and 0 <= price_diff <= 1.1 and (bids_shares > self.bids_shares):
                     self.logger.info(f"Up 5: {asks_price_raw}¢ 价格匹配,执行自动卖出")
@@ -2291,9 +2294,9 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                else:
-                    self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
-                    time.sleep(1)
+                    else:
+                        self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
+                        time.sleep(1)
                 
         except Exception as e:
             self.logger.error(f"Sell_yes执行失败: {str(e)}")
@@ -2356,7 +2359,9 @@ class CryptoTrader:
                         self.sell_count = 0
                         self.trade_count = 0
                         break
-                
+                    else:
+                        self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
+                        time.sleep(1)
                 elif no5_price >= 60 and (0 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Down 5: {100 - asks_price_raw}¢ 价格匹配,执行自动卖出")
 
@@ -2384,9 +2389,9 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                else:
-                    self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
-                    time.sleep(1)
+                    else:
+                        self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
+                        time.sleep(1)
                 
         except Exception as e:
             self.logger.info(f"Sell_no执行失败: {str(e)}")
