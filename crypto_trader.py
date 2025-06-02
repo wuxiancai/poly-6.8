@@ -130,6 +130,9 @@ class CryptoTrader:
         # 默认卖价
         self.default_sell_price = 1 # 不修改
 
+        # 默认卖价
+        self.default_normal_sell_price = 99 # 不修改
+
         # 买入价格冗余
         self.price_premium = 3 # 不修改
 
@@ -436,7 +439,7 @@ class CryptoTrader:
         url_frame = ttk.Frame(scrollable_frame)
         url_frame.pack(fill="x", padx=2, pady=5)
 
-        # 创建下拉列和输入框组合控件
+        # 监控网址输入框
         ttk.Label(url_frame, text="WEB:", font=('Arial', 10)).grid(row=0, column=1, padx=5, pady=5)
         self.url_entry = ttk.Combobox(url_frame, width=47, font=('TkDefaultFont', 12))
         self.url_entry.grid(row=0, column=2, padx=2, pady=5, sticky="ew")
@@ -1469,8 +1472,7 @@ class CryptoTrader:
             except StaleElementReferenceException:
                 self.logger.warning("获取登录按钮文本时发生 StaleElementReferenceException将重试查找。")
                 return None
-        else:
-            
+        else: 
             return None # 未找到元素，返回 None
     
     def click_login_button(self):
@@ -1482,7 +1484,7 @@ class CryptoTrader:
                 login_button_element.click()
                 self.logger.info("\033[34m✅ 已点击 'Log In' 按钮\033[0m")
 
-                # 使用 XPath 定位并点击 google 按钮
+                # 使用 XPath 定位并点击 google 按钮,可以考虑使用pyautogui点击登录按钮
                 google_button = None
                 try:
                     google_button = self.driver.find_element(By.XPATH, XPathConfig.LOGIN_WITH_GOOGLE_BUTTON[0])
@@ -1495,11 +1497,9 @@ class CryptoTrader:
                 if google_button:
                     google_button.click()
                     self.logger.info("\033[34m✅ 已点击 Google 登录按钮\033[0m")
-                
-                time.sleep(8) # 等待后续操作或页面跳转
 
             except StaleElementReferenceException:
-                self.logger.warning("点击登录按钮时发生 StaleElementReferenceException，可能需要重新查找按钮或处理页面刷新。")
+                self.logger.warning("点击登录按钮时发生 StaleElementReferenceException,可能需要重新查找按钮或处理页面刷新。")
             except Exception as e:
                 self.logger.info(f"❌ 点击登录按钮或 Google 按钮时出错")
         else:
@@ -1516,7 +1516,7 @@ class CryptoTrader:
                 try:
                     # 使用线程执行登录检查，避免阻塞主线程
                     threading.Thread(
-                        target=self._check_login_status_thread,
+                        target=self._check_login_status_thread, # 执行登录检查线程,此线程完全独立于主线程
                         daemon=True
                     ).start()
                 except Exception as e:
@@ -1524,22 +1524,22 @@ class CryptoTrader:
                 
                 # 继续监控
                 if self.running:
-                    self.login_check_timer = self.root.after(10000, check_login_status)  # 每10秒检查一次
+                    self.login_check_timer = self.root.after(15000, check_login_status)  # 每15秒检查一次
         # 开始第一次检查
         self.login_check_timer = self.root.after(10000, check_login_status)
 
     def _check_login_status_thread(self):
-        """在单独线程中执行登录检查,执行登录操作"""
+        """在单独线程中执行登录检查,只检查"""
         try:
             login_button_element_found = self.find_login_button()
 
             if login_button_element_found:
-                
                 try:
                     self.logger.warning(f"❌ 检测到未登录状态, 执行登录操作")
                     # 在新的辅助线程中执行登录操作
                     login_thread = threading.Thread(target=self.check_and_handle_login, daemon=True)
-                    login_thread.start()   
+                    login_thread.start()
+
                 except Exception as e_thread_start:
                     self.logger.error(f"启动登录线程失败: {e_thread_start}")
                                 
@@ -1549,9 +1549,9 @@ class CryptoTrader:
     def check_and_handle_login(self):
         """执行登录操作 - 此函数由 _check_login_status_thread 在获得锁后于新线程中启动"""
         try:
-            # 使用 self.root.after(0, ...) 将 GUI 相关操作调度回主线程
             self.stop_refresh_page()
             self.stop_url_monitoring()
+
             self.logger.info("开始执行登录操作 (在独立线程中)...")
             if not self.driver:
                 self.restart_browser() 
@@ -1560,34 +1560,121 @@ class CryptoTrader:
 
             self.click_login_button()
 
-            time.sleep(2)
-            # 检查 "Log In" 按钮是否仍然存在
+            # 等待10秒,等待页面跳转
+            time.sleep(10)
+            
+            # 再次检查 "Log In" 按钮是否仍然存在
             login_button_still_present = self.find_login_button()
-            time.sleep(2)
+            
             if login_button_still_present:
                 self.click_login_button()
+                time.sleep(10)
+            
+            def check_cash():
+                # 找 CASH的值, 验证是否登录成功,如果找到, 则登录成功
+                try:
+                    cash_value = None
+                    try:
+                        cash_value = self.driver.find_element(By.XPATH, XPathConfig.CASH_VALUE[0])
+                    except NoSuchElementException:
+                        cash_value = self._find_element_with_retry(
+                            XPathConfig.CASH_VALUE,
+                            timeout=3,
+                            silent=True
+                        )
 
-            # 找 CASH的值, 如果找到, 则登录成功
-            cash_value = None
-            try:
-                cash_value = self.driver.find_element(By.XPATH, XPathConfig.CASH_VALUE[0])
-            except NoSuchElementException:
-                cash_value = self._find_element_with_retry(
-                    XPathConfig.CASH_VALUE,
-                    timeout=3,
-                    silent=True
-                )
+                    if cash_value:
+                        return cash_value
+                    else:
+                        return None
 
-            if not login_button_still_present and cash_value:
-                self.logger.info(f"✅ 找到 \033[34mlogin_button={login_button_still_present}和cash的值:{cash_value.text}\033[0m ,登录成功")
+                except Exception as e:
+                    self.logger.warning(f"❌ 检查 CASH 值失败")
+                    return None
+                
+            cash_value = check_cash()
+            if cash_value:
+                self.logger.info(f"✅ 找到\033[34mcash的值:{cash_value.text}\033[0m,登录成功")
+                # 在当前标签页打开 url 网址
+                url = self.url_entry.get()
+                self.driver.get(url)
+                time.sleep(2)
+
+                # 执行 CLICK_ACCEPT 按钮
+                self.click_accept()
+                
                 # 确保在主线程中调用 refresh_page
                 self.root.after(2000, self.start_url_monitoring)
                 self.root.after(20000, self.refresh_page)
                 self.logger.info(f"✅ \033[34m启动页面刷新\033[0m")
                 self.login_running = False
-            
+
         except Exception as e:
             self.logger.info(f"❌ 登录流程 'check_and_handle_login' 发生错误: {e}")
+
+    def verify_accept(self):
+        """检查是否存在"Accept"按钮"""
+        time.sleep(2)
+        accept_button = None
+        try:
+            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
+        except NoSuchElementException:
+            accept_button = self._find_element_with_retry(
+                XPathConfig.ACCEPT_BUTTON,
+                timeout=3,
+                silent=True
+            )
+        
+        if accept_button:
+            #self.logger.info("检测到ACCEPT弹窗")
+            return True
+        else:
+            #self.logger.info("没有检测到ACCEPT弹窗")
+            return False
+        
+    def click_accept(self):
+        """点击ACCEPT按钮"""
+        self.logger.info("开始执行点击ACCEPT按钮")
+
+        #点击 AMOUNT 按钮,输入 1,然后点击 CONFIRM 按钮
+        self.amount_yes1_button.event_generate('<Button-1>')
+        time.sleep(0.5)
+        self.buy_confirm_button.invoke()
+        time.sleep(0.5)
+
+        try:
+            screen_width, screen_height = pyautogui.size()
+            
+            target_x = 0
+            target_y = 0
+
+            if platform.system() == "Linux": # 分辨率 2560x1600
+                # Linux 系统下的特定坐标
+                target_x = screen_width - 520
+                target_y = 724
+                
+            else:
+                # 其他操作系统的默认坐标分辨率 1920x1080
+                target_x = screen_width - 520
+                target_y = 724
+                
+            # 移动鼠标到目标位置并点击
+            pyautogui.moveTo(target_x, target_y, duration=0.2) # 可选，平滑移动
+            pyautogui.click(target_x, target_y)
+            
+            accept_button = self.verify_accept()
+            # 检查一遍是否点击成功
+            if accept_button:
+                self.logger.info("❌ 点击ACCEPT按钮失败,ACCEPT还在,继续点击")
+                self.driver.refresh()
+                time.sleep(2)
+                self.click_accept()
+            else:
+                self.logger.info("✅ 验证了ACCEPT按钮不存在,点击成功")
+                self.driver.refresh()
+
+        except Exception as e:
+            self.logger.error(f"执行 click_accept 点击操作失败: {str(e)}")
 
     def refresh_page(self):
         """定时刷新页面"""
@@ -1642,70 +1729,6 @@ class CryptoTrader:
     """以上代码执行了登录操作的函数,直到第 1315 行,程序执行返回到 748 行"""
 
     """以下代码是监控买卖条件及执行交易的函数,程序开始进入交易阶段,从 1468 行直到第 2224200 行"""  
-    def is_buy_accept(self):
-        """检查是否存在"Accept"按钮"""
-        try:
-            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
-        except NoSuchElementException:
-            accept_button = self._find_element_with_retry(
-                XPathConfig.ACCEPT_BUTTON,
-                timeout=3,
-                silent=True
-            )
-        
-        if accept_button:
-            #self.logger.info("检测到ACCEPT弹窗")
-            return True
-        else:
-            #self.logger.info("没有检测到ACCEPT弹窗")
-            return False
-    
-    def is_sell_accept(self):
-        """检查是否存在"Accept"按钮"""
-        try:
-            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
-            
-        except NoSuchElementException:
-            accept_button = self._find_element_with_retry(
-                XPathConfig.ACCEPT_BUTTON,
-                timeout=3,
-                silent=True
-            )
-           
-        if accept_button:
-            #self.logger.info("\033[34m✅ 存在 ACCEPT 按钮\033[0m")
-            return True
-        else:
-            #self.logger.info("\033[31m❌ 不存在 ACCEPT 按钮\033[0m")
-            return False
-        
-    def click_accept(self):
-        """点击ACCEPT按钮"""
-        try:
-            screen_width, screen_height = pyautogui.size()
-            
-            target_x = 0
-            target_y = 0
-
-            if platform.system() == "Linux": # 分辨率 2560x1600
-                # Linux 系统下的特定坐标
-                target_x = screen_width - 520
-                target_y = 724
-                
-            else:
-                # 其他操作系统的默认坐标分辨率 1920x1080
-                target_x = screen_width - 520
-                target_y = 724
-                
-            # 移动鼠标到目标位置并点击
-            pyautogui.moveTo(target_x, target_y, duration=0.2) # 可选，平滑移动
-            pyautogui.click(target_x, target_y)
-            
-            self.logger.info(f"✅ 已在坐标 (X={target_x}, Y={target_y}) 执行点击操作")
-
-        except Exception as e:
-            self.logger.error(f"执行 click_accept 点击操作失败: {str(e)}")
-
     def First_trade(self, asks_price_raw, bids_price_raw, asks_shares, bids_shares):
         """第一次交易价格设置为 0.52 买入"""
         try:
@@ -1725,14 +1748,6 @@ class CryptoTrader:
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
                         
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
-                            
                         time.sleep(2)
                         if self.Verify_buy_yes():
                             # 增加交易次数
@@ -1751,14 +1766,14 @@ class CryptoTrader:
                             self.no2_price_entry.insert(0, str(self.default_target_price))
                             self.no2_price_entry.configure(foreground='red')  # 添加红色设置
 
-                            # 设置 Yes5和No5价格为0.99
+                            # 设置 Yes5和No5价格为99
                             self.yes5_price_entry = self.yes_frame.grid_slaves(row=8, column=1)[0]
                             self.yes5_price_entry.delete(0, tk.END)
-                            self.yes5_price_entry.insert(0, "99")
+                            self.yes5_price_entry.insert(0, str(self.default_normal_sell_price))
                             self.yes5_price_entry.configure(foreground='red')  # 添加红色设置
                             self.no5_price_entry = self.no_frame.grid_slaves(row=8, column=1)[0]
                             self.no5_price_entry.delete(0, tk.END)
-                            self.no5_price_entry.insert(0, "99")
+                            self.no5_price_entry.insert(0, str(self.default_normal_sell_price))
                             self.no5_price_entry.configure(foreground='red')  # 添加红色设置
                             self.logger.info("\033[34m✅ First_trade执行成功\033[0m")
                             self.root.after(30000, self.driver.refresh)
@@ -1787,15 +1802,6 @@ class CryptoTrader:
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
-                        
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
 
                         time.sleep(2)
                         if self.Verify_buy_no():
@@ -1818,11 +1824,11 @@ class CryptoTrader:
                             # 设置 Yes5和No5价格为0.98
                             self.yes5_price_entry = self.yes_frame.grid_slaves(row=8, column=1)[0]
                             self.yes5_price_entry.delete(0, tk.END)
-                            self.yes5_price_entry.insert(0, "99")
+                            self.yes5_price_entry.insert(0, str(self.default_normal_sell_price))
                             self.yes5_price_entry.configure(foreground='red')  # 添加红色设置
                             self.no5_price_entry = self.no_frame.grid_slaves(row=8, column=1)[0]
                             self.no5_price_entry.delete(0, tk.END)
-                            self.no5_price_entry.insert(0, "99")
+                            self.no5_price_entry.insert(0, str(self.default_normal_sell_price))
                             self.no5_price_entry.configure(foreground='red')  # 添加红色设置
                             self.logger.info("\033[34m✅ First_trade执行成功\033[0m")
                             self.root.after(30000, self.driver.refresh)
@@ -1865,22 +1871,18 @@ class CryptoTrader:
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
-                        
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
+
                         time.sleep(2)
                         if self.Verify_buy_yes():
                             self.buy_yes2_amount = float(self.yes2_amount_entry.get())
+
                             # 重置Yes2和No2价格为0
                             self.yes2_price_entry.delete(0, tk.END)
                             self.yes2_price_entry.insert(0, "0")
+                            self.yes2_price_entry.configure(foreground='black')
                             self.no2_price_entry.delete(0, tk.END)
                             self.no2_price_entry.insert(0, "0")
+                            self.no2_price_entry.configure(foreground='black')
                             
                             # 设置No3价格为默认值
                             self.no3_price_entry = self.no_frame.grid_slaves(row=4, column=1)[0]
@@ -1918,21 +1920,16 @@ class CryptoTrader:
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
                             
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
-                            
                         time.sleep(2)
                         if self.Verify_buy_no():
                             self.buy_no2_amount = float(self.no2_amount_entry.get())
                             # 重置Yes2和No2价格为0
                             self.yes2_price_entry.delete(0, tk.END)
                             self.yes2_price_entry.insert(0, "0")
+                            self.yes2_price_entry.configure(foreground='black')
                             self.no2_price_entry.delete(0, tk.END)
                             self.no2_price_entry.insert(0, "0")
+                            self.no2_price_entry.configure(foreground='black')
                             
                             # 设置Yes3价格为默认值
                             self.yes3_price_entry = self.yes_frame.grid_slaves(row=4, column=1)[0]
@@ -1983,14 +1980,6 @@ class CryptoTrader:
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
-                        
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
-                            
 
                         time.sleep(2)
                         if self.Verify_buy_yes():
@@ -2000,8 +1989,10 @@ class CryptoTrader:
                             # 重置Yes3和No3价格为0
                             self.yes3_price_entry.delete(0, tk.END)
                             self.yes3_price_entry.insert(0, "0")
+                            self.yes3_price_entry.configure(foreground='black')
                             self.no3_price_entry.delete(0, tk.END)
                             self.no3_price_entry.insert(0, "0")
+                            self.no3_price_entry.configure(foreground='black')
                             
                             # 设置No4价格为默认值
                             self.no4_price_entry = self.no_frame.grid_slaves(row=6, column=1)[0]
@@ -2037,15 +2028,7 @@ class CryptoTrader:
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
                         time.sleep(0.5)
-                        
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
-                            
-
+                    
                         time.sleep(2)
                         if self.Verify_buy_no():
                             self.buy_no3_amount = float(self.no3_amount_entry.get())
@@ -2053,8 +2036,10 @@ class CryptoTrader:
                             # 重置Yes3和No3价格为0
                             self.yes3_price_entry.delete(0, tk.END)
                             self.yes3_price_entry.insert(0, "0")
+                            self.yes3_price_entry.configure(foreground='black')
                             self.no3_price_entry.delete(0, tk.END)
                             self.no3_price_entry.insert(0, "0")
+                            self.no3_price_entry.configure(foreground='black')
                             
                             # 设置Yes4价格为默认值
                             self.yes4_price_entry = self.yes_frame.grid_slaves(row=6, column=1)[0]
@@ -2102,21 +2087,18 @@ class CryptoTrader:
                         self.amount_yes4_button.event_generate('<Button-1>')
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
-                        time.sleep(0.5)
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
+                        
                         time.sleep(2)
                         if self.Verify_buy_yes():
                             self.buy_yes4_amount = float(self.yes4_amount_entry.get())
+                            
                             # 重置Yes4和No4价格为0
                             self.yes4_price_entry.delete(0, tk.END)
                             self.yes4_price_entry.insert(0, "0")
+                            self.yes4_price_entry.configure(foreground='black')
                             self.no4_price_entry.delete(0, tk.END)
                             self.no4_price_entry.insert(0, "0")
+                            self.no4_price_entry.configure(foreground='black')
 
                             """当买了 4次后预防第 5 次反水，所以价格到了 51 时就平仓，然后再自动开"""
                             # 设置 Yes5和No5价格为0.85
@@ -2128,6 +2110,7 @@ class CryptoTrader:
                             self.no5_price_entry.delete(0, tk.END)
                             self.no5_price_entry.insert(0, str(self.default_sell_price))
                             self.no5_price_entry.configure(foreground='red')  # 添加红色设置
+
                             # 增加交易次数
                             self.trade_count += 1
                             # 发送交易邮件
@@ -2155,22 +2138,18 @@ class CryptoTrader:
                         self.amount_no4_button.event_generate('<Button-1>')
                         time.sleep(0.5)
                         self.buy_confirm_button.invoke()
-                        time.sleep(0.5)
-                        if self.is_buy_accept():
-                            # 点击 "Accept" 按钮
-                            time.sleep(0.5)
-                            self.click_accept()
-                            time.sleep(0.5)
-                            self.buy_confirm_button.invoke()
+
                         time.sleep(2)
                         if self.Verify_buy_no():
                             # 重置Yes4和No4价格为0
                             self.yes4_price_entry.delete(0, tk.END)
                             self.yes4_price_entry.insert(0, "0")
+                            self.yes4_price_entry.configure(foreground='black')
                             self.no4_price_entry.delete(0, tk.END)
                             self.no4_price_entry.insert(0, "0")
+                            self.no4_price_entry.configure(foreground='black')
 
-                            """当买了 4次后预防第 5 次反水，所以价格到了 52 时就平仓，然后再自动开"""
+                            """当买了 4次后预防第 5 次反水，所以价格到了 47 时就平仓，然后再自动开"""
                             # 设置 Yes5和No5价格为0.98
                             self.yes5_price_entry = self.yes_frame.grid_slaves(row=8, column=1)[0]
                             self.yes5_price_entry.delete(0, tk.END)
@@ -2181,6 +2160,7 @@ class CryptoTrader:
                             self.no5_price_entry.insert(0, str(self.default_sell_price_backwater))
                             self.no5_price_entry.configure(foreground='red')  # 添加红色设置
                             self.buy_no4_amount = float(self.no4_amount_entry.get())
+
                             # 增加交易次数
                             self.trade_count += 1
                             # 发送交易邮件
@@ -2219,7 +2199,7 @@ class CryptoTrader:
                 price_diff = round(bids_price_raw - yes5_price, 2) # 47-47=0;48-47=1;46-47=-1;
 
                 # 检查Yes5价格匹配
-                if (40 <=yes5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
+                if (44 <=yes5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Up 5: {bids_price_raw}¢ 价格匹配,执行自动卖出")
                     
                     self.yes5_target_price = yes5_price
@@ -2231,37 +2211,25 @@ class CryptoTrader:
                         
                         self.only_sell_no3()
 
-                        # 重置所有价格
-                        for i in range(1,6):  # 1-5
-                            yes_entry = getattr(self, f'yes{i}_price_entry', None)
-                            no_entry = getattr(self, f'no{i}_price_entry', None)
+                        # 设置 YES5/NO5 价格为 99
+                        self.yes5_price_entry.delete(0, tk.END)
+                        self.yes5_price_entry.insert(0, str(self.default_normal_sell_price))
+                        self.yes5_price_entry.configure(foreground='red')  # 添加红色设置
+                        self.no5_price_entry.delete(0, tk.END)
+                        self.no5_price_entry.insert(0, str(self.default_normal_sell_price))
+                        self.no5_price_entry.configure(foreground='red')  # 添加红色设置
 
-                            if yes_entry:
-                                yes_entry.delete(0, tk.END)
-                                yes_entry.insert(0, "0")
-                            if no_entry:
-                                no_entry.delete(0, tk.END)
-                                no_entry.insert(0, "0")
+                        # 重置交易次数
+                        self.reset_trade_count += 1
+                        self.reset_count_label.config(text=str(self.reset_trade_count))
+                        #self.logger.info(f"重置交易次数: {self.reset_trade_count}")
+                        self.sell_count = 0
+                        self.trade_count = 0
 
                         # 重置YES2 价格为默认值
                         self.yes2_price_entry.delete(0, tk.END)
                         self.yes2_price_entry.insert(0, str(self.default_target_price))
-                        self.yes2_price_entry.configure(foreground='red')  # 添加红色设置
-
-                        # 设置 YES5/NO5 价格为 99
-                        self.yes5_price_entry.delete(0, tk.END)
-                        self.yes5_price_entry.insert(0, "99")
-                        self.yes5_price_entry.configure(foreground='red')  # 添加红色设置
-                        self.no5_price_entry.delete(0, tk.END)
-                        self.no5_price_entry.insert(0, "99")
-                        self.no5_price_entry.configure(foreground='red')  # 添加红色设置
-
-                        # 重置交易
-                        self.reset_trade_count += 1
-                        self.reset_count_label.config(text=str(self.reset_trade_count))
-                        self.logger.info(f"重置交易次数: {self.reset_trade_count}")
-                        self.sell_count = 0
-                        self.trade_count = 0
+                        self.yes2_price_entry.configure(foreground='black') 
                         break
                     
                 elif yes5_price >= 60 and 0 <= price_diff <= 1.1 and (bids_shares > self.bids_shares):
@@ -2282,16 +2250,18 @@ class CryptoTrader:
                             self.only_sell_no()
                         
                         # 重置所有价格
-                        for i in range(1,6):  # 1-5
+                        for i in range(1,5):  # 1-4
                             yes_entry = getattr(self, f'yes{i}_price_entry', None)
                             no_entry = getattr(self, f'no{i}_price_entry', None)
 
                             if yes_entry:
                                 yes_entry.delete(0, tk.END)
                                 yes_entry.insert(0, "0")
+                                yes_entry.configure(foreground='black')
                             if no_entry:
                                 no_entry.delete(0, tk.END)
                                 no_entry.insert(0, "0")
+                                no_entry.configure(foreground='black')
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
@@ -2325,28 +2295,12 @@ class CryptoTrader:
                         
                         self.only_sell_yes3()
 
-                        # 重置所有价格
-                        for i in range(1,6):  # 1-5
-                            yes_entry = getattr(self, f'yes{i}_price_entry', None)
-                            no_entry = getattr(self, f'no{i}_price_entry', None)
-                            if yes_entry:
-                                yes_entry.delete(0, tk.END)
-                                yes_entry.insert(0, "0")
-                            if no_entry:
-                                no_entry.delete(0, tk.END)
-                                no_entry.insert(0, "0")
-
-                        # 重置NO2 价格为默认值
-                        self.no2_price_entry.delete(0, tk.END)
-                        self.no2_price_entry.insert(0, str(self.default_target_price))
-                        self.no2_price_entry.configure(foreground='red')  # 添加红色设置
-
                         # 设置 YES5/NO5 价格为 99
                         self.yes5_price_entry.delete(0, tk.END)
-                        self.yes5_price_entry.insert(0, "99")
+                        self.yes5_price_entry.insert(0, str(self.default_normal_sell_price))
                         self.yes5_price_entry.configure(foreground='red')  # 添加红色设置
                         self.no5_price_entry.delete(0, tk.END)
-                        self.no5_price_entry.insert(0, "99")
+                        self.no5_price_entry.insert(0, str(self.default_normal_sell_price))
                         self.no5_price_entry.configure(foreground='red')  # 添加红色设置
 
                         # 重置交易
@@ -2356,6 +2310,12 @@ class CryptoTrader:
                         
                         self.sell_count = 0
                         self.trade_count = 0
+
+                        # 重置NO2 价格为默认值
+                        self.no2_price_entry.delete(0, tk.END)
+                        self.no2_price_entry.insert(0, str(self.default_target_price))
+                        self.no2_price_entry.configure(foreground='black')  
+
                         break
                     
                 elif no5_price >= 60 and (0 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
@@ -2373,15 +2333,17 @@ class CryptoTrader:
                             self.only_sell_yes()
 
                         # 重置所有价格
-                        for i in range(1,6):  # 1-5
+                        for i in range(1,5):  # 1-4
                             yes_entry = getattr(self, f'yes{i}_price_entry', None)
                             no_entry = getattr(self, f'no{i}_price_entry', None)
                             if yes_entry:
                                 yes_entry.delete(0, tk.END)
                                 yes_entry.insert(0, "0")
+                                yes_entry.configure(foreground='black')
                             if no_entry:
                                 no_entry.delete(0, tk.END)
                                 no_entry.insert(0, "0")
+                                no_entry.configure(foreground='black')
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
@@ -2409,25 +2371,29 @@ class CryptoTrader:
         self.sell_count = 0
         self.trade_count = 0
 
+        # 设置 YES5/NO5 价格为 0
+        self.yes5_price_entry.delete(0, tk.END)
+        self.yes5_price_entry.insert(0, "0")
+        self.yes5_price_entry.configure(foreground='black')
+        self.no5_price_entry.delete(0, tk.END)
+        self.no5_price_entry.insert(0, "0")
+        self.no5_price_entry.configure(foreground='black')
+        
         # 重置Yes1和No1价格为默认值
         self.set_yes1_no1_default_target_price()
+        # 重置交易次数
         self.reset_count_label.config(text=str(self.reset_trade_count))
         self.logger.info(f"第\033[32m{self.reset_trade_count}\033[0m次重置交易")
 
     def only_sell_yes(self):
         """只卖出YES"""
         self.logger.info("执行only_sell_yes")
+
         self.position_sell_yes_button.invoke()
         time.sleep(0.5)
         self.sell_confirm_button.invoke()
         time.sleep(0.5)
-
-        if self.is_sell_accept():
-            # 点击 "Accept" 按钮
-            self.click_accept()
-            time.sleep(0.5)
-            self.sell_confirm_button.invoke()
-
+        
         time.sleep(2)
         if self.Verify_sold_yes():
              # 增加卖出计数
@@ -2453,12 +2419,6 @@ class CryptoTrader:
         time.sleep(0.5)
         self.sell_confirm_button.invoke()
         time.sleep(1)
-
-        if self.is_sell_accept():
-            # 点击 "Accept" 按钮
-            self.click_accept()
-            time.sleep(0.5)
-            self.sell_confirm_button.invoke()
 
         time.sleep(2)
         if self.Verify_sold_no():
