@@ -116,6 +116,9 @@ export PATH="/usr/local/bin:$PATH"
 echo -e "${GREEN}启动 Chrome 中...${NC}"
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
     --remote-debugging-port=9222 \
+    --disable-translate \
+    --no-first-run \
+    --disable-extensions \
     --user-data-dir="$HOME/ChromeDebug" \
     https://polymarket.com/markets/crypto
 

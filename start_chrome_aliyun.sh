@@ -135,6 +135,9 @@ if [ -x "$SCRIPT_DIR/google-chrome" ]; then
     "$SCRIPT_DIR/google-chrome" \
         --remote-debugging-port=9222 \
         --no-sandbox \
+        --disable-translate \
+        --disable-gpu \
+        --no-first-run \
         --user-data-dir="$SCRIPT_DIR/ChromeDebug" \
         https://polymarket.com/markets/crypto &
 elif [ -x "$SCRIPT_DIR/chrome" ]; then

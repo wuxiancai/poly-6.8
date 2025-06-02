@@ -77,6 +77,9 @@ Restart=on-failure
 WantedBy=graphical.target
 EOF
 
+# 拷贝 Xauthority 文件到用户目录
+sudo cp /run/user/1000/gdm/Xauthority /home/$USER_NAME/Xauthority
+
 echo "[7/9] 固定分辨率为 $RESOLUTION..."
 cat <<EOF | sudo tee /home/$USER_NAME/.xprofile
 #!/bin/bash
