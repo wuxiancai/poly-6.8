@@ -134,8 +134,8 @@ class CryptoTrader:
         self.price_premium = 3 # 不修改
 
         # 买卖触发条件之一:最少成交数量SHARES
-        self.asks_shares = 99 # 不修改
-        self.bids_shares = 99 # 不修改
+        self.asks_shares = 66 # 不修改
+        self.bids_shares = 66 # 不修改
         
         # 按钮区域按键 WIDTH
         self.button_width = 8 # 不修改

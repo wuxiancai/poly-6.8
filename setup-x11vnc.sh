@@ -98,13 +98,60 @@ sudo systemctl restart x11vnc.service
 echo "[8/10] 设置 admin 用户自动登录图形界面..."
 sudo loginctl enable-linger "$USER_NAME"
 
+echo "[10/10] 安装 NOVNC..."
+
+NOVNC_DIR="/opt/noVNC"
+NOVNC_PORT="6080"
+VNC_TARGET="localhost:5900"
+
+echo "[1/6] 安装依赖..."
+sudo pip3 install websockify
+
+echo "[2/6] 下载 noVNC 和 websockify..."
+if [ ! -d "$NOVNC_DIR" ]; then
+  sudo git clone https://github.com/novnc/noVNC.git "$NOVNC_DIR"
+  cd "$NOVNC_DIR"
+  sudo git clone https://github.com/novnc/websockify
+else
+  echo "noVNC 已存在，跳过下载。"
+fi
+
+echo "[3/6] 创建 systemd 服务文件..."
+sudo cat <<EOF | sudo tee /etc/systemd/system/novnc.service
+[Unit]
+Description=noVNC Web VNC Client
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$NOVNC_DIR
+ExecStart=$NOVNC_DIR/utils/launch.sh --vnc $VNC_TARGET --listen $NOVNC_PORT
+Restart=always
+User=$USER
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "[4/6] 赋予 noVNC 目录权限给 $USER..."
+sudo chown -R $USER:$USER "$NOVNC_DIR"
+
+echo "[5/6] 启用并启动 noVNC 服务..."
+sudo systemctl daemon-reload
+sudo systemctl enable novnc
+sudo systemctl restart novnc
+
+echo "[6/6] 完成。现在可以通过浏览器访问："
+IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || echo "你的服务器IP:")
+echo "   http://$IP:$NOVNC_PORT/vnc.html"
+
 echo "[9/10] 检查是否有 display :0 启动，如果没有说明需重启系统..."
 
 if ! sudo loginctl show-session "$(loginctl | grep "$USER_NAME" | awk '{print $1}')" -p Type | grep -q "x11"; then
-  echo "[⚠️ ] 未检测到 X 图形会话（DISPLAY=:0），请稍后手动执行：sudo reboot"
+  echo "[⚠️ ] 未检测到 X 图形会话(DISPLAY=:0),请稍后手动执行:sudo reboot"
+  sudo reboot
 else
-  echo "[✅] 已检测到图形会话，VNC 服务器可用：端口 $VNC_PORT"
+  echo "[✅] 已检测到图形会话,VNC 服务器可用,端口 $VNC_PORT"
+  echo "如果无法登录,请手动重启服务器:sudo reboot"
 fi
 
-echo "[9/9] 所有设置完成，建议现在重启：sudo reboot"
-sudo reboot
