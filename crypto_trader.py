@@ -503,7 +503,7 @@ class CryptoTrader:
         # 交易币种及日期，颜色为黑色
         ttk.Label(pair_container, text="", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
-        self.trading_pair_label = ttk.Label(pair_container, text="--", 
+        self.trading_pair_label = ttk.Label(pair_container, text="Trader-type", 
                                         font=('Arial', 16), foreground='black')
         self.trading_pair_label.pack(side=tk.LEFT, padx=2)
 
@@ -514,23 +514,27 @@ class CryptoTrader:
         # 币安零点时价格显示
         ttk.Label(binance_frame, text="Midnight:", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
-        self.binance_zero_price_label = ttk.Label(binance_frame, text="--", 
+        self.binance_zero_price_label = ttk.Label(binance_frame, text="0", 
                                         font=('Arial', 16), foreground='blue')
         self.binance_zero_price_label.pack(side=tk.LEFT, padx=2)
 
         # 币安实时价格显示
         ttk.Label(binance_frame, text="Now:", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
-        self.binance_now_price_label = ttk.Label(binance_frame, text="--", 
+        self.binance_now_price_label = ttk.Label(binance_frame, text="0", 
                                         font=('Arial', 16), foreground='blue')
         self.binance_now_price_label.pack(side=tk.LEFT, padx=2)
         
         # 币安价格当天涨跌百分比显示
         ttk.Label(binance_frame, text="", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
-        self.binance_rate_label = ttk.Label(binance_frame, text="--", 
+        self.binance_rate_label = ttk.Label(binance_frame, text="0", 
                                         font=('Arial', 16), foreground='blue')
-        self.binance_rate_label.pack(side=tk.LEFT, padx=2)
+        self.binance_rate_label.pack(side=tk.LEFT, padx=0)
+
+        self.binance_rate_symbol_label = ttk.Label(binance_frame, text="%", 
+                                        font=('Arial', 16), foreground='blue')
+        self.binance_rate_symbol_label.pack(side=tk.LEFT, padx=0)
         
         # 修改实时价格显示区域
         price_frame = ttk.Frame(scrollable_frame)
@@ -792,8 +796,8 @@ class CryptoTrader:
     def start_monitoring(self):
         """开始监控"""
         # 直接使用当前显示的网址
-        self.target_url = self.url_entry.get()
-        self.logger.info(f"\033[34m✅ 开始监控网址: {self.target_url}\033[0m")
+        target_url = self.url_entry.get()
+        self.logger.info(f"\033[34m✅ 开始监控网址: {target_url}\033[0m")
         
         # 启用开始按钮，启用停止按钮
         self.start_button['state'] = 'disabled'
@@ -805,7 +809,7 @@ class CryptoTrader:
         self.trade_count = 0
             
         # 启动浏览器作线程
-        threading.Thread(target=self._start_browser_monitoring, args=(self.target_url,), daemon=True).start()
+        threading.Thread(target=self._start_browser_monitoring, args=(target_url,), daemon=True).start()
         """到这里代码执行到了 995 行"""
 
         self.running = True
@@ -1371,20 +1375,20 @@ class CryptoTrader:
             def check_url():
                 if self.running and self.driver:
                     try:
-                        current_page_url = self.driver.current_url
-                        target_url = self.target_url
+                        current_page_url = self.driver.current_url # 获取当前页面URL
+                        target_url = self.url_entry.get() # 获取输入框中的URL,这是最原始的URL
 
                         if current_page_url != target_url:
                             self.logger.warning("检测到URL变化,正在恢复")
                             self.driver.get(target_url)
-                            self.logger.info("\033[34m✅ 已恢复到正确的监控网址\033[0m")
+                            self.logger.info(f"\033[34m✅ 已恢复到原始的监控网址: {target_url}\033[0m")
 
                     except Exception as e:
                         self.logger.error(f"URL监控出错: {str(e)}")
                         # 重新导航到目标URL
                         if self.driver and self._is_browser_alive():
-                            self.driver.get(self.target_url)
-                            self.logger.info("\033[34m✅ URL监控已自动修复\033[0m")
+                            self.driver.get(target_url)
+                            self.logger.info(f"\033[34m✅ URL监控已自动修复: {target_url}\033[0m")
                     # 继续监控
                     if self.running:
                         self.url_check_timer = self.root.after(3000, check_url)  # 每3秒检查一次
@@ -1769,7 +1773,7 @@ class CryptoTrader:
                             )
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试
 
                 # 检查No1价格匹配: (100 - bids_price_raw) should be close to no1_price_gui
@@ -1833,7 +1837,7 @@ class CryptoTrader:
                             )
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试                           
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
@@ -1899,7 +1903,7 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试
                 # 检查No2价格匹配
                 elif 0 <= round(((100.0 - bids_price_raw) - no2_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
@@ -2020,7 +2024,7 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试
                 # 检查No3价格匹配
                 elif 0 <= round(((100.0 - bids_price_raw) - no3_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
@@ -2072,7 +2076,7 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
@@ -2139,7 +2143,7 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
+                            self.logger.warning("❌ 交易失败,等待2秒后重试")
                             time.sleep(2)  # 添加延时避免过于频繁的重试
                 # 检查No4价格匹配
                 elif 0 <= round(((100.0 - bids_price_raw) - no4_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
@@ -2192,7 +2196,7 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待1秒后重试")
+                            self.logger.warning("❌ 交易失败,等待1秒后重试")
                             time.sleep(1)  # 添加延时避免过于频繁的重试
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
@@ -2293,7 +2297,7 @@ class CryptoTrader:
                         break
                     
         except Exception as e:
-            self.logger.error(f"Sell_yes执行失败: {str(e)}")
+            self.logger.error(f"❌ Sell_yes执行失败: {str(e)}")
             
         finally:
             self.trading = False
@@ -2383,7 +2387,7 @@ class CryptoTrader:
                         break
                 
         except Exception as e:
-            self.logger.info(f"Sell_no执行失败: {str(e)}")
+            self.logger.error(f"❌ Sell_no执行失败: {str(e)}")
             
         finally:
             self.trading = False
@@ -2439,7 +2443,7 @@ class CryptoTrader:
             )
             
         else:
-            self.logger.warning("卖出only_sell_yes验证失败,重试")
+            self.logger.warning("❌ 卖出only_sell_yes验证失败,重试")
             self.only_sell_yes()        
        
     def only_sell_no(self):
@@ -2472,7 +2476,7 @@ class CryptoTrader:
             )
             
         else:
-            self.logger.warning("卖出only_sell_no验证失败,重试")
+            self.logger.warning("❌ 卖出only_sell_no验证失败,重试")
             self.only_sell_no()
 
     def only_sell_yes3(self):
@@ -2521,7 +2525,7 @@ class CryptoTrader:
             )
             self.logger.info(f"卖出 Up 3 SHARES: {yes3_shares} 成功")     
         except Exception as e:
-            self.logger.info(f"only_sell_yes3执行失败,重试")
+            self.logger.info(f"❌ only_sell_yes3执行失败,重试")
             self.only_sell_yes3()
             
     def only_sell_no3(self):
@@ -2571,7 +2575,7 @@ class CryptoTrader:
             )
             self.logger.info(f"卖出 Down 3 SHARES: {no3_shares} 成功")
         except Exception as e:
-            self.logger.info(f"only_sell_no3执行失败,重试")
+            self.logger.info(f"❌ only_sell_no3执行失败,重试")
             self.only_sell_no3()
             
     def Verify_buy_yes(self):
@@ -2612,7 +2616,7 @@ class CryptoTrader:
                 return True, self.buy_yes_amount 
             return False       
         except Exception as e:
-            self.logger.warning(f"Verify_buy_yes执行失败: {str(e)}")
+            self.logger.warning(f"❌ Verify_buy_yes执行失败: {str(e)}")
             return False
         finally:
             self.driver.refresh()
@@ -2658,7 +2662,7 @@ class CryptoTrader:
                 return True, self.buy_no_amount
             return False        
         except Exception as e:
-            self.logger.warning(f"Verify_buy_no执行失败: {str(e)}")
+            self.logger.warning(f"❌ Verify_buy_no执行失败: {str(e)}")
             return False
         finally:
             self.driver.refresh()
@@ -2700,7 +2704,7 @@ class CryptoTrader:
                 return True, self.sell_yes_amount
             return False       
         except Exception as e:
-            self.logger.warning(f"Verify_sold_yes执行失败: {str(e)}")   
+            self.logger.warning(f"❌ Verify_sold_yes执行失败: {str(e)}")   
             return False
         finally:
             self.driver.refresh()
@@ -2745,7 +2749,7 @@ class CryptoTrader:
                 return True, self.sell_no_amount
             return False        
         except Exception as e:
-            self.logger.info(f"Verify_sold_no执行失败: {str(e)}")
+            self.logger.info(f"❌ Verify_sold_no执行失败: {str(e)}")
             return False
         finally:
             self.driver.refresh()
@@ -3373,10 +3377,10 @@ class CryptoTrader:
                                 portfolio_value=body
                             )
                 
-                self.logger.warning(f"发现 {len(failed_xpaths)} 个 XPath 定位失败，已发送邮件通知")
+                self.logger.warning(f"❌ 发现 {len(failed_xpaths)} 个 XPath 定位失败，已发送邮件通知")
             
         except Exception as e:
-            self.logger.error(f"监控 XPath 元素时发生错误: {str(e)}")
+            self.logger.error(f"❌  监控 XPath 元素时发生错误: {str(e)}")
         finally:
             # 每隔 1 小时检查一次,先关闭之前的定时器
             self.root.after_cancel(self.monitor_xpath_timer)
@@ -3411,39 +3415,39 @@ class CryptoTrader:
             # 设置搜索关键词
             coins = [coin_type]
             for coin in coins:
-                try:  # 为每个币种添加单独的异常处理
-                    
-                    coin_new_weekly_url = self.find_new_weekly_url(coin)
-                    
-                    if coin_new_weekly_url:
-                        self.driver.get(coin_new_weekly_url)
-                        # 保存当前 URL 到 config
-                        self.config['website']['url'] = coin_new_weekly_url
-                        self.save_config()
-                        
-                        # 清除url_entry中的url
-                        self.url_entry.delete(0, tk.END)
-                        # 把保存到config的url放到self.url_entry中
-                        self.url_entry.insert(0, coin_new_weekly_url)
+                try:  # 为每个币种添加单独的异常处理 
+                    new_url = self.find_new_weekly_url(coin)
 
-                        self.target_url = self.url_entry.get()
-                        new_url = self.url_entry.get()
-                        pair = re.search(r'event/([^?]+)', new_url)
-                        self.trading_pair_label.config(text=pair.group(1))
-                        self.logger.info(f"\033[34m✅ {self.target_url} 已插入到主界面上\033[0m")
-                        self.start_url_monitoring()
-                        self.refresh_page_timer = self.root.after(5000, self.refresh_page)
-                        self.schedule_auto_find_coin()
-                        return     
+                    def save_new_url(new_url):
+                        if new_url:
+                            self.driver.get(new_url)
+                            # 保存当前 URL 到 config
+                            self.config['website']['url'] = new_url
+                            self.save_config()
+                            
+                            # 清除url_entry中的url
+                            self.url_entry.delete(0, tk.END)
+                            # 把保存到config的url放到self.url_entry中
+                            self.url_entry.insert(0, new_url)
+
+                            # 获取trader_pair,用于显示在主界面上
+                            pair = re.search(r'event/([^?]+)', new_url)
+                            self.trading_pair_label.config(text=pair.group(1))
+                            self.logger.info(f"\033[34m✅ 新URL已插入到主界面上: {new_url} \033[0m")
+                         
                 except Exception as e:
                     self.logger.error(f"处理{coin}时出错: {str(e)}")
+                    save_new_url(new_url)
 
-            self.root.after(5000, self.start_url_monitoring)
+            self.start_url_monitoring()
+            self.refresh_page()
+            
         except Exception as e:
             self.logger.error(f"自动找币异常: {str(e)}")
+            self.find_54_coin(coin_type)
 
     def find_new_weekly_url(self, coin):
-        """在Polymarket市场搜索指定币种的周合约地址,只返回周合约地址"""
+        """在Polymarket市场搜索指定币种的周合约地址,只返回URL"""
         try:
             if self.trading:
                 return
@@ -3513,28 +3517,28 @@ class CryptoTrader:
                     WebDriverWait(self.driver, 20).until(EC.url_contains('/event/'))
                     
                     # 获取当前URL
-                    new_weekly_url = self.driver.current_url
+                    new_url = self.driver.current_url
                     time.sleep(5)
 
                     # 这里如果价格是 52,那么会触发自动交易
                     if self.trading == True:
                         time.sleep(50)
+                        
                         # 保存当前 URL 到 config
-                        self.config['website']['url'] = new_weekly_url
+                        self.config['website']['url'] = new_url
                         self.save_config()
                         self.logger.info(f"✅ {coin}:符合要求, 正在交易,已保存到 config")
                         
                         # 把保存到config的url放到self.url_entry中
-                        # 保存前,先清楚现有的url
+                        # 保存前,先删除现有的url
                         self.url_entry.delete(0, tk.END)
-                        self.url_entry.insert(0, new_weekly_url)
-                        self.target_url = self.url_entry.get()
-                        new_url = self.url_entry.get()
+                        self.url_entry.insert(0, new_url)
+                        
                         pair = re.search(r'event/([^?]+)', new_url)
                         self.trading_pair_label.config(text=pair.group(1))
-                        self.logger.info(f"✅ {self.target_url}:已插入到主界面上")
+                        self.logger.info(f"✅ {new_url}:已插入到主界面上")
 
-                        self.target_url_window = self.driver.current_window_handle
+                        target_url_window = self.driver.current_window_handle
                         time.sleep(2)
 
                         # 关闭原始和搜索窗口
@@ -3542,12 +3546,11 @@ class CryptoTrader:
                         self.driver.close()
                         self.driver.switch_to.window(original_tab)
                         self.driver.close()
-                        self.driver.switch_to.window(self.target_url_window)
+                        self.driver.switch_to.window(target_url_window)
 
                         self.start_url_monitoring()
-                        self.refresh_page_timer = self.root.after(5000, self.refresh_page)
+                        self.refresh_page()
 
-                        return False
                     else:
                         # 关闭当前详情URL标签页
                         self.driver.close()
@@ -3561,9 +3564,9 @@ class CryptoTrader:
                         # 切换回原始窗口
                         self.driver.switch_to.window(original_tab)
                         
-                        return new_weekly_url
+                        return new_url
                 else:
-                    self.logger.warning(f"未能打开{coin}的详情页")
+                    self.logger.warning(f"❌未能打开{coin}的详情页")
                     # 关闭搜索标签页
                     self.driver.close()
                     # 切换回原始窗口
@@ -3571,7 +3574,7 @@ class CryptoTrader:
                     return None
                 
             except NoSuchElementException as e:
-                self.logger.warning(f"未找到{coin}周合约链接: {str(e)}")
+                self.logger.warning(f"❌ 未找到{coin}链接")
                 # 关闭搜索标签页
                 self.driver.close()
                 # 切换回原始窗口
@@ -3638,7 +3641,7 @@ class CryptoTrader:
             cash_match = re.search(r'\$?([\d,]+\.?\d*)', cash_value)
 
             if not cash_match:
-                raise ValueError("无法从Cash值中提取数字")
+                raise ValueError("❌ 无法从Cash值中提取数字")
 
             # 移除逗号并转换为浮点数
             self.zero_time_cash_value = round(float(cash_match.group(1).replace(',', '')), 2)
@@ -3749,7 +3752,7 @@ class CryptoTrader:
 
                 if current_price_for_calc:
                     binance_rate = ((price - current_price_for_calc) / current_price_for_calc) * 100
-                    binance_rate_text = f"{binance_rate:.3f}%"
+                    binance_rate_text = f"{binance_rate:.3f}"
                     rate_color = "#1AAD19" if binance_rate >= 0 else "red"
 
                 self.last_coin_price = price  # 更新为最新价格
