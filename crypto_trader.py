@@ -512,14 +512,14 @@ class CryptoTrader:
         binance_frame.pack(anchor="center")
 
         # 币安零点时价格显示
-        ttk.Label(binance_frame, text="M-Price:", 
+        ttk.Label(binance_frame, text="Midnight:", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
         self.binance_zero_price_label = ttk.Label(binance_frame, text="--", 
                                         font=('Arial', 16), foreground='blue')
         self.binance_zero_price_label.pack(side=tk.LEFT, padx=2)
 
         # 币安实时价格显示
-        ttk.Label(binance_frame, text="Now Price:", 
+        ttk.Label(binance_frame, text="Now:", 
                  font=('Arial', 14), foreground='black').pack(side=tk.LEFT, padx=2)
         self.binance_now_price_label = ttk.Label(binance_frame, text="--", 
                                         font=('Arial', 16), foreground='blue')
