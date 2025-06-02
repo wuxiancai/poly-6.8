@@ -133,9 +133,9 @@ class CryptoTrader:
         # 买入价格冗余
         self.price_premium = 3 # 不修改
 
-        # 买卖触发条件之一:最少成交数量SHARES
-        self.asks_shares = 66 # 不修改
-        self.bids_shares = 66 # 不修改
+        # 买入触发条件之一:最少成交数量SHARES
+        self.asks_shares = 100 # 不修改
+        self.bids_shares = 100# 不修改
         
         # 按钮区域按键 WIDTH
         self.button_width = 8 # 不修改
@@ -1650,12 +1650,31 @@ class CryptoTrader:
             )
         
         if accept_button:
-            self.logger.info("检测到ACCEPT弹窗")
+            #self.logger.info("检测到ACCEPT弹窗")
             return True
         else:
-            self.logger.info("没有检测到ACCEPT弹窗")
+            #self.logger.info("没有检测到ACCEPT弹窗")
             return False
     
+    def is_sell_accept(self):
+        """检查是否存在"Accept"按钮"""
+        try:
+            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
+            
+        except NoSuchElementException:
+            accept_button = self._find_element_with_retry(
+                XPathConfig.ACCEPT_BUTTON,
+                timeout=3,
+                silent=True
+            )
+           
+        if accept_button:
+            #self.logger.info("\033[34m✅ 存在 ACCEPT 按钮\033[0m")
+            return True
+        else:
+            #self.logger.info("\033[31m❌ 不存在 ACCEPT 按钮\033[0m")
+            return False
+        
     def click_accept(self):
         """点击ACCEPT按钮"""
         try:
@@ -1750,8 +1769,8 @@ class CryptoTrader:
                             )
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
 
                 # 检查No1价格匹配: (100 - bids_price_raw) should be close to no1_price_gui
                 elif 0 <= round(((100.0 - bids_price_raw) - no1_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
@@ -1814,8 +1833,8 @@ class CryptoTrader:
                             )
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试                           
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试                           
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
         except Exception as e:
@@ -1880,8 +1899,8 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
                 # 检查No2价格匹配
                 elif 0 <= round(((100.0 - bids_price_raw) - no2_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
                     while True:
@@ -1932,8 +1951,8 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
         except Exception as e:
@@ -2001,8 +2020,8 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
                 # 检查No3价格匹配
                 elif 0 <= round(((100.0 - bids_price_raw) - no3_price), 2) <= self.price_premium and (bids_shares > self.bids_shares):
                     while True:
@@ -2053,8 +2072,8 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
         except Exception as e:
@@ -2173,8 +2192,8 @@ class CryptoTrader:
                             self.root.after(30000, self.driver.refresh)
                             break
                         else:
-                            self.logger.warning("交易失败,等待2秒后重试")
-                            time.sleep(2)  # 添加延时避免过于频繁的重试
+                            self.logger.warning("交易失败,等待1秒后重试")
+                            time.sleep(1)  # 添加延时避免过于频繁的重试
         except ValueError as e:
             self.logger.error(f"价格转换错误: {str(e)}")
         except Exception as e:
@@ -2193,10 +2212,10 @@ class CryptoTrader:
                 # 获取Yes5价格
                 yes5_price = float(self.yes5_price_entry.get())
                 self.trading = True  # 开始交易
-                price_diff = round(bids_price_raw - yes5_price, 2)
+                price_diff = round(bids_price_raw - yes5_price, 2) # 47-47=0;48-47=1;46-47=-1;
 
                 # 检查Yes5价格匹配
-                if yes5_price <= 47 and 0 <= price_diff <= 1.1 and (bids_shares > self.bids_shares):
+                if (40 <=yes5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Up 5: {bids_price_raw}¢ 价格匹配,执行自动卖出")
                     
                     self.yes5_target_price = yes5_price
@@ -2272,9 +2291,9 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                    else:
-                        self.logger.warning("卖出sell_yes验证失败,重试")
-                        time.sleep(2)
+                else:
+                    self.logger.warning("卖出sell_yes验证失败, 等待1秒后重试")
+                    time.sleep(1)
                 
         except Exception as e:
             self.logger.error(f"Sell_yes执行失败: {str(e)}")
@@ -2294,13 +2313,14 @@ class CryptoTrader:
                 self.trading = True  # 开始交易
                 price_diff = round(100 - asks_price_raw - no5_price, 2)
             
-                # 检查No5价格匹配
-                if no5_price <= 47 and (0 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
+                # 检查No5价格匹配,反水卖出同方向
+                if (40 <=no5_price <= 47) and (-1 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Down 5: {100 - asks_price_raw}¢ 价格匹配,执行自动卖出")
 
                     while True:
+                        # 先卖全部 Down
                         self.only_sell_no()
-                        self.logger.info(f"卖完 Down 后，再卖 Up 3 SHARES")
+                        self.logger.info(f"卖完 Down 后，再卖 Up3 SHARES")
                         
                         self.only_sell_yes3()
 
@@ -2336,9 +2356,6 @@ class CryptoTrader:
                         self.sell_count = 0
                         self.trade_count = 0
                         break
-                    else:
-                        self.logger.warning("卖出sell_no验证失败,重试")
-                        time.sleep(2)
                 
                 elif no5_price >= 60 and (0 <= price_diff <= 1.1) and (bids_shares > self.bids_shares):
                     self.logger.info(f"Down 5: {100 - asks_price_raw}¢ 价格匹配,执行自动卖出")
@@ -2367,9 +2384,9 @@ class CryptoTrader:
                         # 在所有操作完成后,重置交易
                         self.root.after(0, self.reset_trade)
                         break
-                    else:
-                        self.logger.warning("卖出sell_no验证失败,重试")
-                        time.sleep(2)
+                else:
+                    self.logger.warning("卖出sell_no验证失败, 等待1秒后重试")
+                    time.sleep(1)
                 
         except Exception as e:
             self.logger.info(f"Sell_no执行失败: {str(e)}")
@@ -2464,6 +2481,51 @@ class CryptoTrader:
             self.logger.warning("卖出only_sell_no验证失败,重试")
             self.only_sell_no()
 
+    def only_sell_yes3(self):
+        """只卖出YES 3 SHARES"""
+        self.logger.info("执行only_sell_yes3")
+        # 获取 YES3 的金额
+        yes3_shares = self.buy_yes3_amount / (self.default_target_price / 100)
+        
+        # 再卖 UP ,但是只卖 YES3 的金额对应的 SHARES
+        self.position_sell_yes_button.invoke()
+        time.sleep(0.5)
+
+        # 找到SHARES输入框(与 AMOUNT_INPUT 相同)
+        try:
+            shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
+        except NoSuchElementException:
+            shares_input = self._find_element_with_retry(
+                XPathConfig.AMOUNT_INPUT,
+                timeout=3,
+                silent=True
+            )                   
+
+        # 清除 SHARES 输入为 0,然后再插入需要卖的 SHARES
+        shares_input.clear()
+        time.sleep(0.5)
+        shares_input.send_keys(str(yes3_shares))
+        time.sleep(0.5)
+        self.sell_confirm_button.invoke()
+        time.sleep(0.5)
+
+        # 验证是否卖出成功
+        if self.Verify_sold_yes():
+            self.logger.info(f"卖 Up 3 SHARES 成功")
+
+        # 增加卖出计数
+        self.sell_count += 1
+        # 发送交易邮件 - 卖出YES
+        self.send_trade_email(
+            trade_type="Sell Up",
+            price=self.sell_up_price,
+            amount=self.position_yes_cash(),  # 卖出时金额为总持仓
+            trade_count=self.sell_count,
+            cash_value=self.cash_value,
+            portfolio_value=self.portfolio_value
+        )
+        self.logger.info(f"卖出 Up 3 SHARES: {yes3_shares} 成功")     
+    
     def only_sell_no3(self):
         """只卖出Down 3 SHARES"""
         self.logger.info("执行only_sell_no3")
@@ -2510,51 +2572,6 @@ class CryptoTrader:
         )
         self.logger.info(f"卖出 Down 3 SHARES: {no3_shares} 成功")
         
-    def only_sell_yes3(self):
-        """只卖出YES 3 SHARES"""
-        self.logger.info("执行only_sell_yes3")
-        # 获取 YES3 的金额
-        yes3_shares = self.buy_yes3_amount / (self.default_target_price / 100)
-        
-        # 再卖 UP ,但是只卖 YES3 的金额对应的 SHARES
-        self.position_sell_yes_button.invoke()
-        time.sleep(0.5)
-
-        # 找到SHARES输入框(与 AMOUNT_INPUT 相同)
-        try:
-            shares_input = self.driver.find_element(By.XPATH, XPathConfig.AMOUNT_INPUT[0])
-        except NoSuchElementException:
-            shares_input = self._find_element_with_retry(
-                XPathConfig.AMOUNT_INPUT,
-                timeout=3,
-                silent=True
-            )                   
-
-        # 清除 SHARES 输入为 0,然后再插入需要卖的 SHARES
-        shares_input.clear()
-        time.sleep(0.5)
-        shares_input.send_keys(str(yes3_shares))
-        time.sleep(0.5)
-        self.sell_confirm_button.invoke()
-        time.sleep(0.5)
-
-        # 验证是否卖出成功
-        if self.Verify_sold_yes():
-            self.logger.info(f"卖 Up 3 SHARES 成功")
-
-        # 增加卖出计数
-        self.sell_count += 1
-        # 发送交易邮件 - 卖出YES
-        self.send_trade_email(
-            trade_type="Sell Up",
-            price=self.sell_up_price,
-            amount=self.position_yes_cash(),  # 卖出时金额为总持仓
-            trade_count=self.sell_count,
-            cash_value=self.cash_value,
-            portfolio_value=self.portfolio_value
-        )
-        self.logger.info(f"卖出 Up 3 SHARES: {yes3_shares} 成功")     
-        
     def Verify_buy_yes(self):
         """
         验证交易是否成功完成Returns:bool: 交易是否成功
@@ -2581,7 +2598,7 @@ class CryptoTrader:
 
             # 添加空值检查
             if not all([trade_type, yes_match]):
-                self.logger.warning(f"正则匹配失败,text内容: {text}")
+                #self.logger.warning(f"正则匹配失败,text内容: {text}")
                 return False
 
             if trade_type.group(1) == "Bought" and yes_match.group(1) == "Up":
@@ -2730,25 +2747,6 @@ class CryptoTrader:
             return False
         finally:
             self.driver.refresh()
-      
-    def is_sell_accept(self):
-        """检查是否存在"Accept"按钮"""
-        try:
-            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
-            
-        except NoSuchElementException:
-            accept_button = self._find_element_with_retry(
-                XPathConfig.ACCEPT_BUTTON,
-                timeout=3,
-                silent=True
-            )
-           
-        if accept_button:
-            self.logger.info("\033[34m✅ 存在 ACCEPT 按钮\033[0m")
-            return True
-        else:
-            self.logger.info("\033[31m❌ 不存在 ACCEPT 按钮\033[0m")
-            return False
     """以上代码是交易主体函数 1-4,从第 1370 行到第 2418行"""
 
     """以下代码是交易过程中的各种点击方法函数，涉及到按钮的点击，从第 2419 行到第 2528 行"""
