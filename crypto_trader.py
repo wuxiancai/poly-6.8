@@ -3394,7 +3394,8 @@ class CryptoTrader:
                             pair = re.search(r'event/([^?]+)', new_url)
                             self.trading_pair_label.config(text=pair.group(1))
                             self.logger.info(f"\033[34m✅ 新URL已插入到主界面上: {new_url} \033[0m")
-                         
+                    save_new_url(new_url)
+
                 except Exception as e:
                     self.logger.error(f"处理{coin}时出错: {str(e)}")
                     save_new_url(new_url)
@@ -3523,7 +3524,7 @@ class CryptoTrader:
                         
                         # 切换回原始窗口
                         self.driver.switch_to.window(original_tab)
-                        
+                        self.logger.info(f"✅ find_new_weekly_url return:{new_url}")
                         return new_url
                 else:
                     self.logger.warning(f"❌未能打开{coin}的详情页")
@@ -3633,7 +3634,7 @@ class CryptoTrader:
     def get_binance_zero_time_price(self):
         """获取币安BTC实时价格,并在中国时区00:00触发。此方法在threading.Timer的线程中执行。"""
         api_data = None
-        coin_for_api = ""
+        coin_form_websocket = ""
         max_retries = 10 # 最多重试次数
         retry_delay = 2  # 重试间隔（秒）
 
@@ -3641,44 +3642,67 @@ class CryptoTrader:
             try:
                 # 1. 获取币种信息
                 selected_coin = self.coin_combobox.get() 
-                coin_for_api = selected_coin + 'USDT'
+                coin_form_websocket = selected_coin + 'USDT'
 
-                # 2. 执行网络请求
-                response = requests.get(f'https://api.binance.com/api/v3/ticker/price?symbol={coin_for_api}', timeout=5)
-                response.raise_for_status() 
+                # --- 新增 websocket 获取价格逻辑 ---
+                ws_url = f"wss://stream.binance.com:9443/ws/{coin_form_websocket.lower()}@ticker"
+                price_holder = {'price': None}
+                ws_error = {'error': None}
 
-                data = response.json()
-                price = round(float(data['price']), 3)
-                api_data = {"price": price, "coin": coin_for_api, "original_selected_coin": selected_coin}
-                self.logger.info(f"✅ (尝试 {attempt + 1}/{max_retries}) 成功获取到币安 \033[34m{api_data['coin']}\033[0m 价格: \033[34m{api_data['price']}\033[0m")
+                def on_message(ws, message):
+                    try:
+                        data = json.loads(message)
+                        price = round(float(data['c']), 3)
+                        price_holder['price'] = price
+                        ws.close()  # 收到一次价格后立即关闭连接
+                    except Exception as e:
+                        ws_error['error'] = e
+                        ws.close()
+                def on_error(ws, error):
+                    ws_error['error'] = error
+                    ws.close()
+                def on_close(ws, close_status_code, close_msg):
+                    pass
+                # 获取币安价格
+                ws = websocket.WebSocketApp(ws_url, on_message=on_message, on_error=on_error, on_close=on_close)
+                ws_thread = threading.Thread(target=ws.run_forever)
+                ws_thread.start()
+                
+                # 等待 websocket 获取到价格或超时
+                ws_thread.join(timeout=5)
+                if ws_error['error']:
+                    raise Exception(ws_error['error'])
+                if price_holder['price'] is None:
+                    raise Exception("WebSocket 未能获取到价格")
+                price = price_holder['price']
+                # --- websocket 获取价格逻辑结束 ---
+
+                api_data = {"price": price, "coin": coin_form_websocket, "original_selected_coin": selected_coin}
+                self.logger.info(f"✅ ({attempt + 1}/{max_retries}) 成功获取到币安 \033[34m{api_data['coin']}\033[0m 价格: \033[34m{api_data['price']}\033[0m")
+                
                 break # 获取成功，跳出重试循环
 
-            except requests.exceptions.Timeout:
-                self.logger.warning(f"❌ (尝试 {attempt + 1}/{max_retries}) 获取币安 \033[34m{coin_for_api}\033[0m 价格超时。")
-            except requests.exceptions.HTTPError as http_err:
-                self.logger.warning(f"❌ (尝试 {attempt + 1}/{max_retries}) 获取币安 \033[34m{coin_for_api}\033[0m 价格时发生HTTP错误: {http_err}")
-            except requests.exceptions.RequestException as req_err:
-                self.logger.warning(f"❌ (尝试 {attempt + 1}/{max_retries}) 获取币安 \033[34m{coin_for_api}\033[0m 价格时发生网络请求错误: {req_err}")
             except Exception as e:
-                self.logger.warning(f"❌ (尝试 {attempt + 1}/{max_retries}) 获取币安 \033[34m{coin_for_api}\033[0m 价格时发生未知错误: {e}")
-            
-            if attempt < max_retries - 1: # 如果不是最后一次尝试
-                self.logger.info(f"等待 {retry_delay} 秒后重试...")
-                time.sleep(retry_delay) # 等待后重试
-            else: # 最后一次尝试仍然失败
-                self.logger.error(f"❌ 获取币安 \033[34m{coin_for_api}\033[0m 价格失败，已达到最大重试次数 ({max_retries})。")
+                self.logger.warning(f"❌ (尝试 {attempt + 1}/{max_retries}) 获取币安 \033[34m{coin_form_websocket}\033[0m 价格时发生错误: {e}")
+                if attempt < max_retries - 1: # 如果不是最后一次尝试
+                    self.logger.info(f"等待 {retry_delay} 秒后重试...")
+                    time.sleep(retry_delay) # 等待后重试
+                else: # 最后一次尝试仍然失败
+                    self.logger.error(f"❌ 获取币安 \033[34m{coin_form_websocket}\033[0m 价格失败，已达到最大重试次数 ({max_retries})。")
         
         # 3. 如果成功获取数据 (即try块没有异常且api_data不为None)，则安排GUI更新到主线程
         if api_data:
             def update_gui():
                 try:
-                    self.last_coin_price = api_data["price"]
-                    self.binance_zero_price_label.config(text=f"${api_data['price']}")
+                    # 获取到币安价格,并更新到GUI
+                    self.zero_time_price = api_data["price"]
+                    self.binance_zero_price_label.config(text=f"{self.zero_time_price}")
                 except Exception as e_gui:
                     self.logger.debug(f"❌ 更新零点价格GUI时出错: {e_gui}")
             
             self.root.after(0, update_gui)
 
+        # 设置定时器,每天00:00获取一次币安价格
         now = datetime.now()
         next_run_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
         if now >= next_run_time:
@@ -3697,29 +3721,31 @@ class CryptoTrader:
             self.logger.info(f"✅ \033[34m{round(seconds_until_next_run / 3600,2)}\033[0m 小时后重新获取{coin_for_next_log} 零点价格")
     
     def get_binance_price_websocket(self):
+        """获取币安价格,并计算上涨或下跌幅度"""
+        # 获取币种信息
         selected_coin = self.coin_combobox.get()
-        coin_for_api = selected_coin.lower() + 'usdt'
-        ws_url = f"wss://stream.binance.com:9443/ws/{coin_for_api}@ticker"
+        coin_form_websocket = selected_coin.lower() + 'usdt'
+        # 获取币安价格
+        ws_url = f"wss://stream.binance.com:9443/ws/{coin_form_websocket}@ticker"
 
         def on_message(ws, message):
             try:
                 data = json.loads(message)
-                price = round(float(data['c']), 3)  # 最新成交价格 close price
-
-                current_price_for_calc = getattr(self, 'last_coin_price', None)
+                # 获取最新成交价格
+                now_price = round(float(data['c']), 3)
+                # 计算上涨或下跌幅度
+                zero_time_price_for_calc = getattr(self, 'zero_time_price', None)
                 binance_rate_text = "--"
                 rate_color = "black"
 
-                if current_price_for_calc:
-                    binance_rate = ((price - current_price_for_calc) / current_price_for_calc) * 100
+                if zero_time_price_for_calc:
+                    binance_rate = ((now_price - zero_time_price_for_calc) / zero_time_price_for_calc) * 100
                     binance_rate_text = f"{binance_rate:.3f}"
                     rate_color = "#1AAD19" if binance_rate >= 0 else "red"
 
-                self.last_coin_price = price  # 更新为最新价格
-
                 def update_gui():
                     try:
-                        self.binance_now_price_label.config(text=f"${price}")
+                        self.binance_now_price_label.config(text=f"{now_price}")
                         self.binance_rate_label.config(
                             text=binance_rate_text,
                             foreground=rate_color,
