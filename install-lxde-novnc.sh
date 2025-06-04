@@ -12,9 +12,10 @@ DISPLAY_NUM="1"
 RESOLUTION="1920x1080"
 NOVNC_PORT="6080"
 VNC_PORT=$((5900 + ${DISPLAY_NUM}))
+sudo usermod -a -G lightdm admin
+sudo usermod -a -G nopasswdlogin admin
 
 echo "开始安装 LXDE, TigerVNC, noVNC ..."
-
 # 1. 更新系统并安装必要软件包
 apt update && apt upgrade -y
 apt install -y lxde-core lightdm tigervnc-standalone-server tigervnc-common novnc websockify net-tools
@@ -43,8 +44,10 @@ else
     mkdir -p /etc/lightdm
     cat <<EOF > "${LIGHTDM_CONF}"
 [Seat:*]
-autologin-user=${USERNAME}
-autologin-session=lxde
+autologin-user=admin
+autologin-session=LXDE
+autologin-user-timeout=0
+autologin-guest=false
 EOF
 fi
 
@@ -75,15 +78,20 @@ Description=Remote desktop service (VNC)
 After=syslog.target network.target
 
 [Service]
-Type=forking
-User=${USERNAME}
-Group=${USERNAME}
-WorkingDirectory=/home/${USERNAME}
+Type=simple
+User=admin
+Group=admin
+WorkingDirectory=/home/admin
+Environment=HOME=/home/admin
+Environment=USER=admin
+Environment=DISPLAY=:%i
 
-PIDFile=/home/${USERNAME}/.vnc/%H:%i.pid
 ExecStartPre=-/usr/bin/vncserver -kill :%i > /dev/null 2>&1
-ExecStart=/usr/bin/vncserver -depth 24 -geometry ${RESOLUTION} :%i -localhost no
+ExecStart=/usr/bin/vncserver -depth 24 -geometry 1920x1080 :%i -localhost no -fg
 ExecStop=/usr/bin/vncserver -kill :%i
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
 
 [Install]
 WantedBy=multi-user.target
