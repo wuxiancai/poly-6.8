@@ -1612,32 +1612,13 @@ class CryptoTrader:
         except Exception as e:
             self.logger.info(f"❌ 登录流程 'check_and_handle_login' 发生错误: {e}")
 
-    def verify_accept(self):
-        """检查是否存在"Accept"按钮"""
-        time.sleep(2)
-        accept_button = None
-        try:
-            accept_button = self.driver.find_element(By.XPATH, XPathConfig.ACCEPT_BUTTON[0])
-        except NoSuchElementException:
-            accept_button = self._find_element_with_retry(
-                XPathConfig.ACCEPT_BUTTON,
-                timeout=3,
-                silent=True
-            )
-        
-        if accept_button:
-            #self.logger.info("检测到ACCEPT弹窗")
-            return True
-        else:
-            #self.logger.info("没有检测到ACCEPT弹窗")
-            return False
-        
     def click_accept(self):
         """点击ACCEPT按钮"""
         self.logger.info("开始执行点击ACCEPT按钮")
 
         #点击 AMOUNT 按钮,输入 1,然后点击 CONFIRM 按钮
         self.amount_yes1_button.event_generate('<Button-1>')
+        
         time.sleep(0.5)
         self.buy_confirm_button.invoke()
         time.sleep(0.5)
@@ -1662,16 +1643,8 @@ class CryptoTrader:
             pyautogui.moveTo(target_x, target_y, duration=0.2) # 可选，平滑移动
             pyautogui.click(target_x, target_y)
             
-            accept_button = self.verify_accept()
-            # 检查一遍是否点击成功
-            if accept_button:
-                self.logger.info("❌ 点击ACCEPT按钮失败,ACCEPT还在,继续点击")
-                self.driver.refresh()
-                time.sleep(2)
-                self.click_accept()
-            else:
-                self.logger.info("✅ 验证了ACCEPT按钮不存在,点击成功")
-                self.driver.refresh()
+            self.logger.info("✅ 点击ACCEPT成功")
+            self.driver.refresh()
 
         except Exception as e:
             self.logger.error(f"执行 click_accept 点击操作失败: {str(e)}")
@@ -1814,6 +1787,7 @@ class CryptoTrader:
                             self.yes1_price_entry.insert(0, "0")
                             self.no1_price_entry.delete(0, tk.END)
                             self.no1_price_entry.insert(0, "0")
+                            
                             
                             # 设置Yes2价格为默认值
                             self.yes2_price_entry = self.yes_frame.grid_slaves(row=2, column=1)[0]
