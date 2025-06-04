@@ -12,6 +12,7 @@ DISPLAY_NUM="1"
 RESOLUTION="1920x1080"
 NOVNC_PORT="6080"
 VNC_PORT=$((5900 + ${DISPLAY_NUM}))
+
 sudo usermod -a -G lightdm admin
 sudo usermod -a -G nopasswdlogin admin
 
@@ -236,17 +237,118 @@ if [ -z "$PUBLIC_IP" ]; then
     fi
 fi
 
-echo " "
-echo "安装和配置完成!"
-echo "TigerVNC 服务器应该在 display :${DISPLAY_NUM} (端口 ${VNC_PORT}) 上运行。"
-echo "noVNC Web界面: http://${PUBLIC_IP}:${NOVNC_PORT}/vnc.html"
-echo "VNC 密码是: ${PASSWORD}"
-echo "用户 ${USERNAME} 将在下次启动时自动登录到 LXDE 桌面。"
-echo "1. Windows 远程桌面连接: ${PUBLIC_IP}:3389 或 IP:3389"
-echo "   用户名: admin"
-echo "   密码: noneboy"
-echo "注意: XRDP 将连接到现有的 VNC 桌面会话，所有连接方式共享同一个桌面。"
-echo "如果遇到问题，请检查日志：journalctl -u vncserver@${DISPLAY_NUM} 和 journalctl -u novnc"
-echo "以及 LightDM 日志 /var/log/lightdm/"
-echo "您可能需要重启服务器以使所有更改完全生效，特别是 LightDM 自动登录。"
-echo "sudo reboot"
+
+# 8. 安装和配置 X2GO
+echo "安装和配置 X2GO..."
+apt install -y x2goserver x2goserver-xsession
+
+# 配置 X2GO 使用现有的 VNC 会话
+echo "配置 X2GO 连接到现有 VNC 会话..."
+
+# 创建 X2GO 会话配置
+cat <<EOF > /etc/x2go/x2goserver.conf
+# X2GO Server Configuration
+# 使用现有的 VNC 会话而不是创建新的
+use-nx=0
+use-vnc=1
+vnc-display=:1
+vnc-password-file=/home/admin/.vnc/passwd
+allow-tcp-connections=1
+EOF
+
+# 配置 X2GO 用户会话
+mkdir -p /home/admin/.x2go
+cat <<EOF > /home/admin/.x2go/sessions
+# X2GO Session Configuration for admin user
+# 连接到现有的 VNC 桌面会话
+[LXDE-VNC]
+name=LXDE Desktop (VNC)
+command=x11vnc -display :1 -shared -forever -nopw -connect localhost:5901
+type=application
+EOF
+
+chown -R admin:admin /home/admin/.x2go
+
+# 创建 X2GO 启动脚本，连接到现有 VNC
+cat <<EOF > /usr/local/bin/x2go-vnc-bridge
+#!/bin/bash
+# X2GO to VNC Bridge Script
+# 这个脚本将 X2GO 会话桥接到现有的 VNC 服务器
+
+export DISPLAY=:1
+export XAUTHORITY=/home/admin/.Xauthority
+
+# 检查 VNC 服务器是否运行
+if ! pgrep -f "Xtigervnc :1" > /dev/null; then
+    echo "VNC Server not running, starting..."
+    su - admin -c "vncserver :1 -geometry 1920x1080 -depth 24"
+    sleep 2
+fi
+
+# 启动 x11vnc 来桥接到现有的 VNC 会话
+exec x11vnc -display :1 -shared -forever -nopw -rfbport 5902 -bg
+EOF
+
+chmod +x /usr/local/bin/x2go-vnc-bridge
+
+# 配置 X2GO 使用我们的桥接脚本
+cat <<EOF > /etc/x2go/applications
+[LXDE]
+name=LXDE Desktop
+command=/usr/local/bin/x2go-vnc-bridge
+icon=lxde
+type=application
+categories=Desktop
+EOF
+
+# 确保 admin 用户可以使用 X2GO
+echo "配置 X2GO 用户权限..."
+usermod -a -G x2gouser admin 2>/dev/null || true
+
+# 创建 X2GO systemd 服务
+echo "创建 X2GO systemd 服务..."
+cat <<EOF > /etc/systemd/system/x2goserver.service
+[Unit]
+Description=X2GO Server
+After=network.target vncserver@1.service
+Requires=vncserver@1.service
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/x2gocleansessions
+ExecReload=/bin/kill -HUP \$MAINPID
+KillMode=mixed
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 启用并启动 X2GO 服务
+echo "启用并启动 X2GO 服务..."
+systemctl daemon-reload
+systemctl enable x2goserver.service
+systemctl start x2goserver.service
+
+# 配置防火墙（如果需要）
+echo "配置 X2GO 防火墙规则..."
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow 22/tcp  # X2GO 使用 SSH 端口
+fi
+
+echo ""
+echo "X2GO 配置完成!"
+echo "现在可以通过以下方式访问桌面："
+echo "1. Windows 远程桌面连接: ${PUBLIC_IP:-<IP>}:3389"
+echo "   用户名: admin, 密码: noneboy"
+echo "2. X2GO 客户端连接: ${PUBLIC_IP:-<IP>}:22"
+echo "   用户名: admin, 密码: noneboy"
+echo "   会话类型: LXDE Desktop"
+echo "3. noVNC Web界面: http://${PUBLIC_IP:-<IP>}:${NOVNC_PORT}/vnc.html"
+echo "   密码: ${PASSWORD}"
+echo "4. VNC 客户端: ${PUBLIC_IP:-<IP>}:${VNC_PORT}"
+echo "   密码: ${PASSWORD}"
+echo ""
+echo "注意: 所有连接方式都共享同一个 LXDE 桌面会话。"
+echo "X2GO 客户端下载: https://wiki.x2go.org/doku.php/download:start"
