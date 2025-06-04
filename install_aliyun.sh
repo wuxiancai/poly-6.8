@@ -32,7 +32,7 @@ sudo apt update
 # 安装必要的系统依赖
 echo "安装系统依赖..."
 sudo apt install -y software-properties-common apt-transport-https ca-certificates gnupg lsb-release curl wget build-essential
-
+sudo apt install -y unzip
 # 确保安装了 python3-venv 和 python3-pip
 echo "安装 python3-venv 和 python3-pip..."
 sudo apt install -y python3-venv python3-pip python3-tk python3-dev
@@ -129,7 +129,7 @@ cat > run_trader.sh << 'EOL'
 if [ -z "$DISPLAY" ] || [[ "$DISPLAY" == ":0" ]]; then
     SOCKET=$(ls /tmp/.X11-unix/X* 2>/dev/null | head -n1)
     if [ -n "$SOCKET" ]; then
-        export DISPLAY=":0"
+        export DISPLAY=":1"
         export XAUTHORITY="/$HOME/.Xauthority"
         echo "自动设置 DISPLAY=:0"
     else
