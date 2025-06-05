@@ -114,20 +114,29 @@ fi
 # 自动判断 DISPLAY
 echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
 
-if [ -z "$DISPLAY" ] || [[ "$DISPLAY" == ":0" ]]; then
-    SOCKET=$(ls /tmp/.X11-unix/X* 2>/dev/null | head -n1)
-    if [ -n "$SOCKET" ]; then
+if [ -z "$DISPLAY" ]; then
+    # 检查VNC显示
+    if [ -S "/tmp/.X11-unix/X1" ]; then
         export DISPLAY=":1"
-        export XAUTHORITY=/$HOME/.Xauthority
-        echo -e "${YELLOW}使用vnc桌面的 DISPLAY=:0${NC}"
+    elif [ -S "/tmp/.X11-unix/X0" ]; then
+        export DISPLAY=":0"
     else
         echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
         exit 1
     fi
-else
-    echo -e "${YELLOW}使用当前环境 DISPLAY=$DISPLAY${NC}"
 fi
 
+# 设置X11授权
+if [ -f "$HOME/.Xauthority" ]; then
+    export XAUTHORITY="$HOME/.Xauthority"
+else
+    # 尝试生成授权文件
+    touch "$HOME/.Xauthority"
+    export XAUTHORITY="$HOME/.Xauthority"
+fi
+
+echo -e "${YELLOW}使用 DISPLAY=$DISPLAY${NC}"
+echo -e "${YELLOW}使用 XAUTHORITY=$XAUTHORITY${NC}"
 
 # 启动 Chrome（调试端口）- 只用项目根目录下的 chrome
 echo -e "${GREEN}启动 Chrome 中...${NC}"
@@ -138,6 +147,11 @@ if [ -x "$SCRIPT_DIR/google-chrome" ]; then
         --disable-translate \
         --disable-gpu \
         --no-first-run \
+        --disable-dev-shm-usage \
+        --disable-extensions \
+        --disable-background-timer-throttling \
+        --disable-backgrounding-occluded-windows \
+        --disable-renderer-backgrounding \
         --user-data-dir="$SCRIPT_DIR/ChromeDebug" \
         https://polymarket.com/markets/crypto &
 elif [ -x "$SCRIPT_DIR/chrome" ]; then

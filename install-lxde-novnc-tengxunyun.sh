@@ -34,7 +34,7 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "请以root用户或使用sudo运行此脚本。" >&2
   exit 1
 fi
-# 阿里云admin用户,腾讯云ubuntu用户
+# 阿里云ubuntu用户,腾讯云ubuntu用户
 USERNAME="ubuntu"
 PASSWORD="noneboy"
 DISPLAY_NUM="1"
@@ -42,13 +42,15 @@ RESOLUTION="1920x1080"
 NOVNC_PORT="6080"
 VNC_PORT=$((5900 + ${DISPLAY_NUM}))
 
-sudo usermod -a -G lightdm admin
-sudo usermod -a -G nopasswdlogin admin
+sudo usermod -a -G lightdm ubuntu
+sudo usermod -a -G nopasswdlogin ubuntu
 
 echo "开始安装 LXDE, TigerVNC, noVNC ..."
 # 1. 更新系统并安装必要软件包
 apt update && apt upgrade -y
-apt install -y lxde-core lightdm tigervnc-standalone-server tigervnc-common novnc websockify net-tools
+apt install -y lxde-core lightdm tigervnc-standalone-server tigervnc-common novnc websockify net-tools nload
+apt install python3-pip -y
+pip3 install glances
 
 # 2. 配置 LightDM 自动登录
 echo "配置 LightDM 自动登录用户 ${USERNAME}..."
@@ -74,16 +76,16 @@ else
     mkdir -p /etc/lightdm
     cat <<EOF > "${LIGHTDM_CONF}"
 [Seat:*]
-autologin-user=admin
+autologin-user=ubuntu
 autologin-session=LXDE
 autologin-user-timeout=0
 autologin-guest=false
 EOF
 fi
 
-# 3. 配置 TigerVNC Server for admin user
+# 3. 配置 TigerVNC Server for ubuntu user
 echo "为用户 ${USERNAME} 配置 TigerVNC..."
-# 切换到 admin 用户执行 vncpasswd，然后切回
+# 切换到 ubuntu 用户执行 vncpasswd，然后切回
 su - ${USERNAME} -c "mkdir -p /home/${USERNAME}/.vnc && echo '${PASSWORD}' | vncpasswd -f > /home/${USERNAME}/.vnc/passwd && chmod 600 /home/${USERNAME}/.vnc/passwd"
 
 # 创建 xstartup 文件
@@ -109,11 +111,11 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
-User=admin
-Group=admin
-WorkingDirectory=/home/admin
-Environment=HOME=/home/admin
-Environment=USER=admin
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu
+Environment=HOME=/home/ubuntu
+Environment=USER=ubuntu
 Environment=DISPLAY=:%i
 
 ExecStartPre=-/usr/bin/vncserver -kill :%i > /dev/null 2>&1
@@ -154,10 +156,9 @@ systemctl start vncserver@${DISPLAY_NUM}.service
 systemctl enable novnc.service
 systemctl start novnc.service
 
-
 echo "现在可以通过以下方式访问桌面："
 echo "1. X2GO 客户端连接: ${PUBLIC_IP:-<IP>}:22"
-echo "   用户名: admin, 密码: noneboy"
+echo "   用户名: ubuntu, 密码: noneboy"
 echo "   会话类型: LXDE Desktop"
 echo "2. noVNC Web界面: http://${PUBLIC_IP:-<IP>}:${NOVNC_PORT}/vnc.html"
 echo "   密码: ${PASSWORD}"

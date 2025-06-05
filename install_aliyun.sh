@@ -125,18 +125,33 @@ chmod +x start_chrome_ubuntu.sh
 cat > run_trader.sh << 'EOL'
 #!/bin/bash
 
-# 自动设置 DISPLAY
-if [ -z "$DISPLAY" ] || [[ "$DISPLAY" == ":0" ]]; then
-    SOCKET=$(ls /tmp/.X11-unix/X* 2>/dev/null | head -n1)
-    if [ -n "$SOCKET" ]; then
+# 自动判断 DISPLAY
+echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
+
+# 在VNC环境下，通常DISPLAY是:1
+if [ -z "$DISPLAY" ]; then
+    # 检查VNC显示
+    if [ -S "/tmp/.X11-unix/X1" ]; then
         export DISPLAY=":1"
-        export XAUTHORITY="/$HOME/.Xauthority"
-        echo "自动设置 DISPLAY=:0"
+    elif [ -S "/tmp/.X11-unix/X0" ]; then
+        export DISPLAY=":0"
     else
-        echo "未检测到 X11 socket,退出"
+        echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
         exit 1
     fi
 fi
+
+# 设置X11授权
+if [ -f "$HOME/.Xauthority" ]; then
+    export XAUTHORITY="$HOME/.Xauthority"
+else
+    # 尝试生成授权文件
+    touch "$HOME/.Xauthority"
+    export XAUTHORITY="$HOME/.Xauthority"
+fi
+
+echo -e "${YELLOW}使用 DISPLAY=$DISPLAY${NC}"
+echo -e "${YELLOW}使用 XAUTHORITY=$XAUTHORITY${NC}"
 
 # 打印接收到的参数，用于调试
 echo "run_trader.sh received args: $@"
