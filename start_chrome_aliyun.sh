@@ -114,17 +114,7 @@ fi
 # 自动判断 DISPLAY
 echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
 
-if [ -z "$DISPLAY" ]; then
-    # 检查VNC显示
-    if [ -S "/tmp/.X11-unix/X1" ]; then
-        export DISPLAY=":1"
-    elif [ -S "/tmp/.X11-unix/X0" ]; then
-        export DISPLAY=":1"
-    else
-        echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
-        exit 1
-    fi
-fi
+export DISPLAY=":1"
 
 # 设置X11授权
 if [ -f "$HOME/.Xauthority" ]; then
@@ -135,7 +125,7 @@ else
     export XAUTHORITY="$HOME/.Xauthority"
 fi
 
-echo -e "${YELLOW}使用 DISPLAY=$DISPLAY${NC}"
+echo -e "${YELLOW}使用 DISPLAY=1"
 echo -e "${YELLOW}使用 XAUTHORITY=$XAUTHORITY${NC}"
 
 # 启动 Chrome（调试端口）- 只用项目根目录下的 chrome
@@ -152,12 +142,6 @@ if [ -x "$SCRIPT_DIR/google-chrome" ]; then
         --disable-background-timer-throttling \
         --disable-backgrounding-occluded-windows \
         --disable-renderer-backgrounding \
-        --user-data-dir="$SCRIPT_DIR/ChromeDebug" \
-        https://polymarket.com/markets/crypto &
-elif [ -x "$SCRIPT_DIR/chrome" ]; then
-    "$SCRIPT_DIR/chrome" \
-        --remote-debugging-port=9222 \
-        --no-sandbox \
         --user-data-dir="$SCRIPT_DIR/ChromeDebug" \
         https://polymarket.com/markets/crypto &
 else

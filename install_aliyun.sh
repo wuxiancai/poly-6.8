@@ -128,18 +128,8 @@ cat > run_trader.sh << 'EOL'
 # 自动判断 DISPLAY
 echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
 
-# 在VNC环境下，通常DISPLAY是:1
-if [ -z "$DISPLAY" ]; then
-    # 检查VNC显示
-    if [ -S "/tmp/.X11-unix/X1" ]; then
-        export DISPLAY=":1"
-    elif [ -S "/tmp/.X11-unix/X0" ]; then
-        export DISPLAY=":1"
-    else
-        echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
-        exit 1
-    fi
-fi
+# 在VNC环境下,通常DISPLAY是:1
+export DISPLAY=":1"
 
 # 设置X11授权
 if [ -f "$HOME/.Xauthority" ]; then
