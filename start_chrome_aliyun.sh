@@ -111,10 +111,7 @@ if ! check_driver; then
     fi
 fi
 
-# 自动判断 DISPLAY
-echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
-
-export DISPLAY=":1"
+export DISPLAY=:1
 
 # 设置X11授权
 if [ -f "$HOME/.Xauthority" ]; then
@@ -134,19 +131,24 @@ if [ -x "$SCRIPT_DIR/google-chrome" ]; then
     "$SCRIPT_DIR/google-chrome" \
         --remote-debugging-port=9222 \
         --no-sandbox \
-        --disable-translate \
         --disable-gpu \
-        --no-first-run \
+        --disable-software-rasterizer \
         --disable-dev-shm-usage \
+        --disable-background-networking \
+        --disable-default-apps \
         --disable-extensions \
+        --disable-sync \
+        --metrics-recording-only \
+        --no-first-run \
+        --disable-translate \
         --disable-background-timer-throttling \
         --disable-backgrounding-occluded-windows \
         --disable-renderer-backgrounding \
+        --disable-features=TranslateUI,BlinkGenPropertyTrees,SitePerProcess,IsolateOrigins \
+        --noerrdialogs \
         --user-data-dir="$SCRIPT_DIR/ChromeDebug" \
-        https://polymarket.com/markets/crypto &
+        about:blank
 else
     echo -e "${RED}Chrome 未找到${NC}"
     exit 1
 fi
-
-echo -e "${GREEN}Chrome 已成功启动${NC}"

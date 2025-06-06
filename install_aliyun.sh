@@ -125,9 +125,6 @@ chmod +x start_chrome_ubuntu.sh
 cat > run_trader.sh << 'EOL'
 #!/bin/bash
 
-# 自动判断 DISPLAY
-echo -e "${YELLOW}自动检测 DISPLAY...${NC}"
-
 # 在VNC环境下,通常DISPLAY是:1
 export DISPLAY=":1"
 

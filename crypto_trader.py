@@ -111,11 +111,19 @@ class CryptoTrader:
         self.url_check_timer = None
         # 添加登录状态监控定时器
         self.login_check_timer = None
+        self.monitor_xpath_timer = None
+        self.get_zero_time_cash_timer = None
+        self.get_binance_zero_time_price_timer = None
+        self.get_binance_price_websocket_timer = None
+        self.comparison_binance_price_timer = None
+        self.schedule_auto_find_coin_timer = None
+
         # 添加URL and refresh_page监控锁
         self.url_monitoring_lock = threading.Lock()
         self.refresh_page_lock = threading.Lock()
         self.login_attempt_lock = threading.Lock()
-
+        self.restart_lock = threading.Lock()  # 添加重启锁
+        self.is_restarting = False  # 重启状态标志
         # 初始化本金
         self.initial_amount = 2.5
         self.first_rebound = 220
@@ -820,46 +828,61 @@ class CryptoTrader:
         # 启用设置金额按钮
         self.set_amount_button['state'] = 'normal'
 
-        # 启动URL监控
-        self.root.after(10000, self.start_url_monitoring)
         # 检查是否登录
-        self.root.after(8000, self.start_login_monitoring)
+        self.login_check_timer = self.root.after(6000, self.start_login_monitoring)
+
+        # 启动URL监控
+        self.url_check_timer = self.root.after(10000, self.start_url_monitoring)
 
         # 启动零点 CASH 监控
-        self.root.after(12000, self.get_zero_time_cash)
+        self.get_zero_time_cash_timer = self.root.after(12000, self.get_zero_time_cash)
 
         # 启动币安零点时价格监控
-        self.root.after(14000, self.get_binance_zero_time_price)
+        self.get_binance_zero_time_price_timer = self.root.after(14000, self.get_binance_zero_time_price)
         
         # 启动币安实时价格监控
-        self.root.after(16000, self.get_binance_price_websocket)
+        self.get_binance_price_websocket_timer = self.root.after(16000, self.get_binance_price_websocket)
 
         # 启动币安价格对比
-        self.root.after(20000, self.comparison_binance_price)
+        self.comparison_binance_price_timer = self.root.after(20000, self.comparison_binance_price)
 
         # 启动自动找币
-        self.root.after(30000, self.schedule_auto_find_coin)
+        self.schedule_auto_find_coin_timer = self.root.after(30000, self.schedule_auto_find_coin)
 
         # 启动页面刷新
-        self.root.after(40000, self.refresh_page)
+        self.refresh_page_timer = self.root.after(40000, self.refresh_page)
         self.logger.info("\033[34m✅ 启动页面刷新成功!\033[0m")
         
         # 启动 XPath 监控
-        self.monitor_xpath_timer = self.root.after(600000, self.monitor_xpath_elements)
+        self.monitor_xpath_timer = self.monitor_xpath_timer = self.root.after(600000, self.monitor_xpath_elements)
 
     def _start_browser_monitoring(self, new_url):
         """在新线程中执行浏览器操作"""
         try:
-            if not self.driver:
+            if not self.driver and not self.is_restarting:
                 chrome_options = Options()
                 chrome_options.debugger_address = "127.0.0.1:9222"
                 chrome_options.add_argument('--disable-dev-shm-usage')
                 
                 system = platform.system()
                 if system == 'Linux':
-                    chrome_options.add_argument('--disable-gpu')
+                    # 添加与启动脚本一致的所有参数
                     chrome_options.add_argument('--no-sandbox')
+                    chrome_options.add_argument('--disable-gpu')
                     chrome_options.add_argument('--disable-software-rasterizer')
+                    chrome_options.add_argument('--disable-dev-shm-usage')
+                    chrome_options.add_argument('--disable-background-networking')
+                    chrome_options.add_argument('--disable-default-apps')
+                    chrome_options.add_argument('--disable-extensions')
+                    chrome_options.add_argument('--disable-sync')
+                    chrome_options.add_argument('--metrics-recording-only')
+                    chrome_options.add_argument('--no-first-run')
+                    chrome_options.add_argument('--disable-translate')
+                    chrome_options.add_argument('--disable-background-timer-throttling')
+                    chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+                    chrome_options.add_argument('--disable-renderer-backgrounding')
+                    chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees,SitePerProcess,IsolateOrigins')
+                    chrome_options.add_argument('--noerrdialogs')
 
                 self.driver = webdriver.Chrome(options=chrome_options)
             try:
@@ -921,8 +944,8 @@ class CryptoTrader:
         """检查价格变化"""
         try:
             # 确保浏览器连接
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
                 
             target_url = self.url_entry.get()
             
@@ -964,70 +987,254 @@ class CryptoTrader:
                 self.logger.error(f"加载页面失败: {str(e)}")
             self.stop_monitoring()
     
-    def restart_browser(self):
-        """自动修复: 尝试重新连接浏览器"""
-        try:
-            self.logger.info("正在尝试自动修复CHROME浏览器...")
-            # 修改根据操作系统选择不同的启动脚本
-            if platform.system() == 'Darwin':  # macOS
-                script_path = os.path.abspath('start_chrome_macos.sh')
-            else:  # Linux (Ubuntu)
-                script_path = os.path.abspath('start_chrome_aliyun.sh')
-           # 直接在当前进程中执行脚本，而不是打开新终端
-            try:
-                # 使用subprocess直接执行脚本，不打开新终端
-                subprocess.run(['bash', script_path], check=True)
-                self.logger.info("\033[34m✅ 已重新启动Chrome浏览器\033[0m")
-            except Exception as chrome_e:
-                self.logger.error(f"启动Chrome浏览器失败: {str(chrome_e)}")
+    def restart_browser(self,force_restart=True):
+        """统一的浏览器重启/重连函数
+        Args:
+            force_restart: True=强制重启Chrome进程,False=尝试重连现有进程
+        """
+        # 检查是否已在重启中
+        with self.restart_lock:
+            if self.is_restarting:
+                self.logger.info("浏览器正在重启中，跳过重复重启")
+                return True
+            self.is_restarting = True
 
-            # 等待Chrome启动并初始化driver
-            max_retries = 6
+        self._send_chrome_alert_email()
+        try:
+            self.logger.info(f"正在{'重启' if force_restart else '重连'}浏览器...")
+            
+            # 1. 清理现有连接
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except Exception:
+                    pass
+                self.driver = None
+            
+            # 2. 如果需要强制重启，启动新的Chrome进程
+            if force_restart:
+                try:
+                    # 根据操作系统选择启动脚本
+                    script_path = ('start_chrome_macos.sh' if platform.system() == 'Darwin' 
+                                else 'start_chrome_aliyun.sh')
+                    script_path = os.path.abspath(script_path)
+                    
+                    # 检查脚本是否存在
+                    if not os.path.exists(script_path):
+                        raise FileNotFoundError(f"启动脚本不存在: {script_path}")
+                    
+                    subprocess.run(['bash', script_path], check=True, timeout=30)
+                    # 等待Chrome启动
+                    time.sleep(3)
+                    self.logger.info("✅ Chrome浏览器已重新启动")
+                    
+                except Exception as e:
+                    self.logger.error(f"启动Chrome失败: {e}")
+                    self.restart_browser(force_restart=True)
+                    return False
+            
+            # 3. 重新连接浏览器（带重试机制）
+            max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    # 重新初始化driver
                     chrome_options = Options()
-                    chrome_options.debugger_address = "127.0.0.1:9222" 
+                    chrome_options.debugger_address = "127.0.0.1:9222"
                     chrome_options.add_argument('--disable-dev-shm-usage')
-
-                    system = platform.system()
-                    if system == 'Linux':  # Linux (Ubuntu)
-                        chrome_options.add_argument('--disable-gpu')
+                    
+                    # Linux特定配置
+                    if platform.system() == 'Linux':
+                        
+                        # 添加与启动脚本一致的所有参数
                         chrome_options.add_argument('--no-sandbox')
+                        chrome_options.add_argument('--disable-gpu')
+                        chrome_options.add_argument('--disable-software-rasterizer')
+                        chrome_options.add_argument('--disable-dev-shm-usage')
+                        chrome_options.add_argument('--disable-background-networking')
+                        chrome_options.add_argument('--disable-default-apps')
                         chrome_options.add_argument('--disable-extensions')
-                        chrome_options.add_argument('--disable-translate')
+                        chrome_options.add_argument('--disable-sync')
+                        chrome_options.add_argument('--metrics-recording-only')
                         chrome_options.add_argument('--no-first-run')
-
+                        chrome_options.add_argument('--disable-translate')
+                        chrome_options.add_argument('--disable-background-timer-throttling')
+                        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+                        chrome_options.add_argument('--disable-renderer-backgrounding')
+                        chrome_options.add_argument('--disable-features=TranslateUI,BlinkGenPropertyTrees,SitePerProcess,IsolateOrigins')
+                        chrome_options.add_argument('--noerrdialogs')
                     self.driver = webdriver.Chrome(options=chrome_options)
                     
                     # 验证连接
-                    self.driver.get('chrome://version/')  # 测试连接
-                    WebDriverWait(self.driver, 10).until(
-                        lambda d: d.execute_script('return document.readyState') == 'complete'
-                    )
-                    self.logger.info("\033[34m✅ 浏览器驱动已成功重连\033[0m")
-                    break
+                    self.driver.execute_script("return navigator.userAgent")
+                    
+                    # 加载目标URL
+                    target_url = self.url_entry.get()
+                    if target_url:
+                        self.driver.get(target_url)
+                        WebDriverWait(self.driver, 15).until(
+                            lambda d: d.execute_script('return document.readyState') == 'complete'
+                        )
+                        self.logger.info(f"✅ 成功加载页面: {target_url}")
+                    
+                    self.logger.info("✅ 浏览器连接成功")
+
+                    # 连接成功后，重置监控线程
+                    self._restore_monitoring_state()
+                    return True
+                    
                 except Exception as e:
                     if attempt < max_retries - 1:
-                        self.logger.warning(f"浏览器连接尝试失败 ({attempt+1}/{max_retries}), 2秒后重试...")
+                        self.logger.warning(f"连接失败 ({attempt+1}/{max_retries}),2秒后重试: {e}")
                         time.sleep(2)
                     else:
-                        raise
-            # 加载目标URL
-            target_url = self.url_entry.get()
-            try:
-                self.driver.get(target_url)
-                WebDriverWait(self.driver, 15).until(
-                    lambda d: d.execute_script('return document.readyState') == 'complete'
-                )
-                self.logger.info(f"\033[34m✅ 成功加载目标页面: {target_url}\033[0m")
-            except Exception as e:
-                self.logger.error(f"加载目标页面失败: {str(e)}")
-                return
-                
+                        self.logger.error(f"浏览器连接最终失败: {e}")
+                        return False
+            return False
+            
         except Exception as e:
-            self.logger.error(f"自动修复失败: {e}")
-    
+            self.logger.error(f"浏览器重启失败: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"浏览器重启失败: {e}")
+            return False
+        finally:
+            with self.restart_lock:
+                self.is_restarting = False
+
+    def _restore_monitoring_state(self):
+        """恢复监控状态 - 重新同步监控逻辑，确保所有监控功能正常工作"""
+        try:
+            self.logger.info("🔄 恢复监控状态...")
+            
+            # 确保运行状态正确
+            self.running = True
+            
+            # 重新启动各种监控功能（不是重新创建定时器，而是确保监控逻辑正常）
+            
+            # 1. 重新启动登录监控（如果当前没有运行）
+            if hasattr(self, 'login_check_timer') and self.login_check_timer:
+                self.root.after_cancel(self.login_check_timer)
+            self.start_login_monitoring()
+            
+            # 2. 重新启动URL监控（如果当前没有运行）
+            if hasattr(self, 'url_check_timer') and self.url_check_timer:
+                self.root.after_cancel(self.url_check_timer) 
+            self.start_url_monitoring()
+
+            # 3. 重新启动页面刷新监控（如果当前没有运行）
+            if hasattr(self, 'refresh_page_timer') and self.refresh_page_timer:
+                self.root.after_cancel(self.refresh_page_timer)     
+            self.refresh_page()
+
+            # 4. 重新启动XPath元素监控（如果当前没有运行）
+            if hasattr(self, 'monitor_xpath_timer') and self.monitor_xpath_timer:
+                self.root.after_cancel(self.monitor_xpath_timer)
+            self.monitor_xpath_elements()
+
+            # 6.重新开始价格比较
+            if hasattr(self,'comparison_binance_price_timer') and self.comparison_binance_price_timer:
+                self.root.after_cancel(self.comparison_binance_price_timer)
+            self.comparison_binance_price()
+
+            # 7.重新启动自动找币功能
+            if hasattr(self,'schedule_auto_find_coin_timer') and self.schedule_auto_find_coin_timer:
+                self.root.after_cancel(self.schedule_auto_find_coin_timer)
+            self.schedule_auto_find_coin()
+            
+            # 智能恢复时间敏感类定时器
+            current_time = datetime.now()
+            
+            # 8. binance_zero_timer: 计算到下一个零点的时间差
+            next_zero_time = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+            if current_time >= next_zero_time:
+                next_zero_time += timedelta(days=1)
+            
+            seconds_until_next_run = int((next_zero_time - current_time).total_seconds() * 1000)  # 转换为毫秒
+            
+            # 只在合理的时间范围内恢复零点价格定时器
+            if seconds_until_next_run > 0:
+                self.get_binance_zero_time_price_timer = self.root.after(seconds_until_next_run, self.get_binance_zero_time_price)
+                self.logger.info(f"✅ 恢复零点价格定时器，{round(seconds_until_next_run / 3600000, 2)} 小时后执行")
+            
+            # 9. zero_cash_timer: 类似的计算逻辑
+            # 现金监控可以稍微提前一点，比如在23:59:30开始
+            next_cash_time = current_time.replace(hour=23, minute=59, second=30, microsecond=0)
+            if current_time >= next_cash_time:
+                next_cash_time += timedelta(days=1)
+            
+            seconds_until_cash_run = int((next_cash_time - current_time).total_seconds() * 1000)
+            
+            if seconds_until_cash_run > 0:
+                self.get_zero_time_cash_timer = self.root.after(seconds_until_cash_run, self.get_zero_time_cash)
+                self.logger.info(f"✅ 恢复零点现金定时器，{round(seconds_until_cash_run / 3600000, 2)} 小时后执行")
+            
+            self.logger.info("✅ 监控状态恢复完成")
+            
+        except Exception as e:
+            self.logger.error(f"恢复监控状态失败: {e}")
+
+    def _send_chrome_alert_email(self):
+        """发送Chrome异常警报邮件"""
+        try:
+            hostname = socket.gethostname()
+            sender = 'huacaihuijin@126.com'
+            receiver = 'huacaihuijin@126.com'
+            app_password = 'PUaRF5FKeKJDrYH7'
+            
+            # 获取交易币对信息
+            full_pair = self.trading_pair_label.cget("text")
+            trading_pair = full_pair.split('-')[0] if full_pair and '-' in full_pair else "未知交易币对"
+            
+            msg = MIMEMultipart()
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            subject = f'🚨{hostname}-Chrome异常-{trading_pair}-需要手动介入'
+            msg['Subject'] = Header(subject, 'utf-8')
+            msg['From'] = sender
+            msg['To'] = receiver
+            
+            # 获取当前状态信息
+            try:
+                cash_value = self.cash_label.cget("text")
+                portfolio_value = self.portfolio_label.cget("text")
+            except:
+                cash_value = "无法获取"
+                portfolio_value = "无法获取"
+            
+            content = f"""
+    🚨 Chrome浏览器异常警报 🚨
+
+    异常时间: {current_time}
+    主机名称: {hostname}
+    交易币对: {trading_pair}
+    当前买入次数: {self.trade_count}
+    当前卖出次数: {self.sell_count}
+    重启次数: {self.reset_trade_count}
+    当前 CASH 值: {cash_value}
+    当前 PORTFOLIO 值: {portfolio_value}
+
+    ⚠️  请立即手动检查并介入处理！
+            """
+            
+            msg.attach(MIMEText(content, 'plain', 'utf-8'))
+            
+            # 发送邮件
+            server = smtplib.SMTP_SSL('smtp.126.com', 465, timeout=5)
+            server.set_debuglevel(0)
+            
+            try:
+                server.login(sender, app_password)
+                server.sendmail(sender, receiver, msg.as_string())
+                self.logger.info(f"✅ Chrome异常警报邮件发送成功")
+            except Exception as e:
+                self.logger.error(f"❌ Chrome异常警报邮件发送失败: {str(e)}")
+            finally:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            self.logger.error(f"发送Chrome异常警报邮件时出错: {str(e)}")
+
     def get_nearby_cents(self):
         """获取spread附近的价格数字"""
         # 根据规律直接获取对应位置的值
@@ -1152,13 +1359,13 @@ class CryptoTrader:
         
     def check_prices(self):
         """检查价格变化"""
-        # 检查浏览器连接
-        if not self._is_browser_alive():
-            self._reconnect_browser()
+        # 直接检查driver是否存在，不存在就重启
+        if not self.driver and not self.is_restarting:
+            self.logger.warning("浏览器未初始化，尝试重启...")
+            if not self.restart_browser(force_restart=True):
+                self.logger.error("浏览器重启失败，跳过本次检查")
+                return
 
-        if not self.driver:
-            self.restart_browser()
- 
         try:
             # 获取一次价格和SHARES
             up_price_val, down_price_val, asks_shares_val, bids_shares_val = self.get_nearby_cents()
@@ -1178,7 +1385,6 @@ class CryptoTrader:
                 self.down_shares_label.config(text=f"Down Shares: {bids_shares_val:.1f}")
                 
                 # 执行所有交易检查函数
-
                 self.First_trade(up_price_val, down_price_val, asks_shares_val, bids_shares_val)
                 self.Second_trade(up_price_val, down_price_val, asks_shares_val, bids_shares_val)
                 self.Third_trade(up_price_val, down_price_val, asks_shares_val, bids_shares_val)
@@ -1200,8 +1406,8 @@ class CryptoTrader:
             
     def check_balance(self):
         """获取Portfolio和Cash值"""
-        if not self.driver:
-            self.restart_browser()
+        if not self.driver and not self.is_restarting:
+            self.restart_browser(force_restart=True)
 
         # 等待页面完全加载
         WebDriverWait(self.driver, 10).until(
@@ -1369,8 +1575,8 @@ class CryptoTrader:
                 self.logger.debug("URL监控已在运行中")
                 return
             
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
 
             self.url_monitoring_running = True
             self.logger.info("\033[34m✅ 启动URL监控\033[0m")
@@ -1389,9 +1595,14 @@ class CryptoTrader:
                     except Exception as e:
                         self.logger.error(f"URL监控出错: {str(e)}")
                         # 重新导航到目标URL
-                        if self.driver and self._is_browser_alive():
-                            self.driver.get(target_url)
-                            self.logger.info(f"\033[34m✅ URL监控已自动修复: {target_url}\033[0m")
+                        if self.driver:
+                            try:
+                                self.driver.get(target_url)
+                                self.logger.info(f"\033[34m✅ URL监控已自动修复: {target_url}\033[0m")
+                            except Exception:
+                                self.restart_browser(force_restart=True)
+                        else:
+                            self.restart_browser(force_restart=True)
                     # 继续监控
                     if self.running:
                         self.url_check_timer = self.root.after(3000, check_url)  # 每3秒检查一次
@@ -1418,37 +1629,6 @@ class CryptoTrader:
             # 重置监控状态
             self.url_monitoring_running = False
             self.logger.info("\033[31m❌ URL监控已停止\033[0m")
-
-    def _is_browser_alive(self):
-        """检查浏览器是否仍然活跃"""
-        try:
-            # 尝试执行一个简单的JavaScript命令来检查浏览器是否响应
-            self.driver.execute_script("return navigator.userAgent")
-            return True
-        except Exception:
-            return False
-            
-    def _reconnect_browser(self):
-        """尝试重新连接浏览器"""
-        try:
-            # 关闭现有连接（如果有）
-            if self.driver:
-                try:
-                    self.driver.quit()
-                except Exception:
-                    pass
-                self.driver = None
-                
-            # 重新建立连接
-            chrome_options = Options()
-            chrome_options.debugger_address = "127.0.0.1:9222"
-            chrome_options.add_argument('--disable-dev-shm-usage')
-            self.driver = webdriver.Chrome(options=chrome_options)
-            self.logger.info("\033[34m✅ 已重新连接到浏览器\033[0m")
-            return True
-        except Exception as e:
-            self.logger.error(f"重新连接浏览器失败: {str(e)}")
-            return False
 
     def find_login_button(self):
         """查找登录按钮"""
@@ -1502,14 +1682,15 @@ class CryptoTrader:
                 self.logger.warning("点击登录按钮时发生 StaleElementReferenceException,可能需要重新查找按钮或处理页面刷新。")
             except Exception as e:
                 self.logger.info(f"❌ 点击登录按钮或 Google 按钮时出错")
+                self.click_login_button()
         else:
             self.logger.info("❌ 未找到 'Log In' 按钮或不符合点击条件，跳过点击。")
 
     def start_login_monitoring(self):
         """启动登录状态监控"""
         self.logger.info("\033[34m✅ 启动登录状态监控\033[0m")
-        if not self.driver:
-            self.restart_browser()
+        if not self.driver and not self.is_restarting:
+            self.restart_browser(force_restart=True)
             
         def check_login_status():
             if self.running and self.driver:
@@ -1553,8 +1734,8 @@ class CryptoTrader:
             self.stop_url_monitoring()
 
             self.logger.info("开始执行登录操作 (在独立线程中)...")
-            if not self.driver:
-                self.restart_browser() 
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True) 
 
             self.login_running = True
 
@@ -1710,9 +1891,10 @@ class CryptoTrader:
                 yes1_price = float(self.yes1_price_entry.get())
                 no1_price = float(self.no1_price_entry.get())
                 self.trading = True  # 开始交易
-                
+                self.logger.info(f"yes1_price: {yes1_price}, no1_price: {no1_price}")
+               
                 # 检查Yes1价格匹配: asks_price_raw should be close to yes1_price_gui
-                if 0 <= round((asks_price_raw - yes1_price), 2) <= self.price_premium and (asks_shares > self.asks_shares):
+                if 0 <= round((asks_price_raw - yes1_price), 2) <= float(self.price_premium) and (asks_shares > self.asks_shares):
                     while True:
                         self.logger.info(f"Up 1: {asks_price_raw}¢ 价格匹配,执行自动交易")
                         # 执行现有的交易操作
@@ -2162,8 +2344,8 @@ class CryptoTrader:
     def Sell_yes(self, asks_price_raw, bids_price_raw, asks_shares, bids_shares):
         """当YES5价格等于实时Yes价格时自动卖出"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
               
             if asks_price_raw is not None and bids_price_raw is not None and (bids_price_raw > 10):
                 
@@ -2249,8 +2431,8 @@ class CryptoTrader:
     def Sell_no(self, asks_price_raw, bids_price_raw, asks_shares, bids_shares):
         """当NO4价格等于实时No价格时自动卖出"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             
             if asks_price_raw is not None and (0 < asks_price_raw < 90) and bids_price_raw is not None:
                 # 获取No5价格
@@ -2518,8 +2700,8 @@ class CryptoTrader:
         """
         try:
             # 首先验证浏览器状态
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             
             time.sleep(1)
             try:
@@ -2563,8 +2745,8 @@ class CryptoTrader:
         """
         try:
             # 首先验证浏览器状态
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             
             time.sleep(1)
             # 等待并检查是否存在 No 标签
@@ -2607,8 +2789,8 @@ class CryptoTrader:
         """
         try:
             # 首先验证浏览器状态
-            if not self.driver:
-                self.restart_browser()  
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)  
 
             time.sleep(2)
             try:
@@ -2651,8 +2833,8 @@ class CryptoTrader:
         """
         try:
             # 首先验证浏览器状态
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
 
             time.sleep(2)
             try:
@@ -2706,8 +2888,8 @@ class CryptoTrader:
     def click_position_sell_no(self):
         """点击 Positions-Sell-No 按钮"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
 
             # 等待页面加载完成
             WebDriverWait(self.driver, 10).until(
@@ -2748,8 +2930,8 @@ class CryptoTrader:
     def click_position_sell_yes(self):
         """点击 Positions-Sell-Yes 按钮"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
 
             # 等待页面加载完成
             WebDriverWait(self.driver, 10).until(
@@ -2791,8 +2973,8 @@ class CryptoTrader:
     def click_sell_confirm_button(self):
         """点击sell-卖出按钮"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             # 点击Sell-卖出按钮
             try:
                 sell_confirm_button = self.driver.find_element(By.XPATH, XPathConfig.SELL_CONFIRM_BUTTON[0])
@@ -2810,8 +2992,8 @@ class CryptoTrader:
 
     def click_buy(self):
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             try:
                 button = self.driver.find_element(By.XPATH, XPathConfig.BUY_BUTTON[0])
             except NoSuchElementException:
@@ -2828,8 +3010,8 @@ class CryptoTrader:
     def click_buy_yes(self):
         """点击 Buy-Yes 按钮"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             
             try:
                 button = self.driver.find_element(By.XPATH, XPathConfig.BUY_YES_BUTTON[0])
@@ -2847,8 +3029,8 @@ class CryptoTrader:
     def click_buy_no(self):
         """点击 Buy-No 按钮"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             try:
                 button = self.driver.find_element(By.XPATH, XPathConfig.BUY_NO_BUTTON[0])
             except NoSuchElementException:
@@ -2865,8 +3047,8 @@ class CryptoTrader:
     def click_amount(self, event=None):
         """点击 Amount 按钮并输入数量"""
         try:
-            if not self.driver:
-                self.restart_browser()
+            if not self.driver and not self.is_restarting:
+                self.restart_browser(force_restart=True)
             
             # 获取触发事件的按钮
             button = event.widget if event else self.amount_button
@@ -2951,23 +3133,6 @@ class CryptoTrader:
         self.logger.info(f"当前持仓NO的金额: {no_value}")
         return no_value
 
-    def auto_start_monitor(self):
-        """自动点击开始监控按钮"""
-        try:
-            self.logger.info("准备阶段：重置按钮状态")
-            # 强制启用开始按钮
-            self.start_button['state'] = 'normal'
-            # 清除可能存在的锁定状态
-            self.running = False
-
-            # 强制点击按钮（即使状态为disabled）
-            self.start_button.invoke()
-            time.sleep(5)
-            self.close_windows()
-               
-        except Exception as e:
-            self.logger.error(f"自动点击失败: {str(e)}")
-            self.root.after(10000, self.auto_start_monitor)
     def close_windows(self):
         """关闭多余窗口"""
         # 检查并关闭多余的窗口，只保留一个
@@ -3012,7 +3177,7 @@ class CryptoTrader:
                 hostname = socket.gethostname()
                 sender = 'huacaihuijin@126.com'
                 receiver = 'huacaihuijin@126.com'
-                app_password = 'YUwsXZ8SYSW6RcTf'  # 有效期 180 天，请及时更新，下次到期日 2025-06-29
+                app_password = 'PUaRF5FKeKJDrYH7'  # 有效期 180 天，请及时更新，下次到期日 2025-11-29
                 
                 # 获取交易币对信息
                 full_pair = self.trading_pair_label.cget("text")
@@ -3136,8 +3301,8 @@ class CryptoTrader:
         
         for attempt in range(max_retries):
             try:
-                if not self.driver:
-                    self.restart_browser()
+                if not self.driver and not self.is_restarting:
+                    self.restart_browser(force_restart=True)
                     
                 # 等待页面加载完成
                 WebDriverWait(self.driver, 10).until(
@@ -3179,8 +3344,8 @@ class CryptoTrader:
         
         for attempt in range(max_retries):
             try:
-                if not self.driver:
-                    self.restart_browser()
+                if not self.driver and not self.is_restarting:
+                    self.restart_browser(force_restart=True)
                     
                 # 等待页面加载完成
                 WebDriverWait(self.driver, 10).until(
@@ -3256,7 +3421,7 @@ class CryptoTrader:
 
     def monitor_xpath_elements(self):
         """使用当前浏览器实例监控 XPath 元素"""
-        if not self.driver:
+        if not self.driver and not self.is_restarting:
             self.logger.warning("浏览器未启动，无法监控 XPath")
             return
             
@@ -3596,14 +3761,14 @@ class CryptoTrader:
 
             # 取消已有的定时器（如果存在）
             if hasattr(self, 'get_zero_time_cash_timer') and self.get_zero_time_cash_timer:
-                self.get_zero_time_cash_timer.cancel()
+                self.root.after_cancel(self.get_zero_time_cash_timer)
 
             # 设置下一次执行的定时器
             if self.running and not self.stop_event.is_set():
                 self.get_zero_time_cash_timer = threading.Timer(seconds_until_midnight, self.get_zero_time_cash)
                 self.get_zero_time_cash_timer.daemon = True
                 self.get_zero_time_cash_timer.start()
-                self.logger.info(f"\033[34m{round(seconds_until_midnight / 3600,2)}\033[0m小时后再次获取 CASH 值")
+                self.logger.info(f"✅ \033[34m{round(seconds_until_midnight / 3600,2)}\033[0m小时后再次获取 \033[34mCASH\033[0m 值")
     
     def get_binance_zero_time_price(self):
         """获取币安BTC实时价格,并在中国时区00:00触发。此方法在threading.Timer的线程中执行。"""
@@ -3684,14 +3849,14 @@ class CryptoTrader:
 
         seconds_until_next_run = (next_run_time - now).total_seconds()
 
-        if hasattr(self, 'binance_zero_price_timer_thread') and self.binance_zero_price_timer_thread and self.binance_zero_price_timer_thread.is_alive():
-            self.binance_zero_price_timer_thread.cancel()
+        if hasattr(self, 'binance_zero_price_timer_thread') and self.binance_zero_price_timer and self.binance_zero_price_timer.is_alive():
+            self.binance_zero_price_timer.cancel()
 
         if self.running and not self.stop_event.is_set():
             coin_for_next_log = self.coin_combobox.get() + 'USDT'
-            self.binance_zero_price_timer_thread = threading.Timer(seconds_until_next_run, self.get_binance_zero_time_price)
-            self.binance_zero_price_timer_thread.daemon = True
-            self.binance_zero_price_timer_thread.start()
+            self.binance_zero_price_timer = threading.Timer(seconds_until_next_run, self.get_binance_zero_time_price)
+            self.binance_zero_price_timer.daemon = True
+            self.binance_zero_price_timer.start()
             self.logger.info(f"✅ \033[34m{round(seconds_until_next_run / 3600,2)}\033[0m 小时后重新获取{coin_for_next_log} 零点价格")
     
     def get_binance_price_websocket(self):
@@ -3792,14 +3957,14 @@ class CryptoTrader:
 
         seconds_until_next_run = (next_run_time - now).total_seconds()
             # 取消已有的定时器（如果存在）
-        if hasattr(self, 'comparison_binance_pric') and self.comparison_binance_timer:
-            self.comparison_binance_timer.cancel()
+        if hasattr(self, 'comparison_binance_pric') and self.comparison_binance_price_timer:
+            self.comparison_binance_price_timer.cancel()
 
             # 设置下一次执行的定时器
             if self.running and not self.stop_event.is_set():
-                self.comparison_binance_timer = threading.Timer(seconds_until_next_run, self._perform_price_comparison)
-                self.comparison_binance_timer.daemon = True
-                self.comparison_binance_timer.start()
+                self.comparison_binance_price_timer = threading.Timer(seconds_until_next_run, self._perform_price_comparison)
+                self.comparison_binance_price_timer.daemon = True
+                self.comparison_binance_price_timer.start()
                 self.logger.info(f"\033[34m{round(seconds_until_next_run / 3600,2)}\033[0m小时后比较\033[34m{self.selected_coin}USDT\033[0m币安价格")
 
 if __name__ == "__main__":
