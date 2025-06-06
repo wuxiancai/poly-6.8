@@ -1891,10 +1891,9 @@ class CryptoTrader:
                 yes1_price = float(self.yes1_price_entry.get())
                 no1_price = float(self.no1_price_entry.get())
                 self.trading = True  # 开始交易
-                self.logger.info(f"yes1_price: {yes1_price}, no1_price: {no1_price}")
                
                 # 检查Yes1价格匹配: asks_price_raw should be close to yes1_price_gui
-                if 0 <= round((asks_price_raw - yes1_price), 2) <= float(self.price_premium) and (asks_shares > self.asks_shares):
+                if 0 <= round((asks_price_raw - yes1_price), 2) <= self.price_premium and (asks_shares > self.asks_shares):
                     while True:
                         self.logger.info(f"Up 1: {asks_price_raw}¢ 价格匹配,执行自动交易")
                         # 执行现有的交易操作
