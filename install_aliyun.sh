@@ -134,7 +134,7 @@ if [ -z "$DISPLAY" ]; then
     if [ -S "/tmp/.X11-unix/X1" ]; then
         export DISPLAY=":1"
     elif [ -S "/tmp/.X11-unix/X0" ]; then
-        export DISPLAY=":0"
+        export DISPLAY=":1"
     else
         echo -e "${RED}无法检测有效 DISPLAY,请检查图形环境${NC}"
         exit 1
