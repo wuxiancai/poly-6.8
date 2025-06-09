@@ -26,7 +26,7 @@ fi
 USERNAME="ubuntu"
 PASSWORD="noneboy"
 DISPLAY_NUM="1"
-RESOLUTION="1920x1080"
+RESOLUTION="1920x1280"
 NOVNC_PORT="6080"
 VNC_PORT=$((5900 + ${DISPLAY_NUM}))
 
@@ -107,7 +107,7 @@ Environment=USER=ubuntu
 Environment=DISPLAY=:%i
 
 ExecStartPre=-/usr/bin/vncserver -kill :%i > /dev/null 2>&1
-ExecStart=/usr/bin/vncserver -depth 24 -geometry 1920x1080 :%i -localhost no -fg
+ExecStart=/usr/bin/vncserver -depth 24 -geometry 1920x1280 :%i -localhost no -fg
 ExecStop=/usr/bin/vncserver -kill :%i
 Restart=on-failure
 RestartSec=5
